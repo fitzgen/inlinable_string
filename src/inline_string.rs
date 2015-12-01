@@ -324,7 +324,6 @@ impl InlineString {
         {
             let mut slice = &mut self.bytes[self.length..INLINE_STRING_CAPACITY];
             write!(&mut slice, "{}", ch)
-                .ok()
                 .expect("inlinable_string: internal error: should have enough space, we
                          checked above");
         }
@@ -484,7 +483,6 @@ impl InlineString {
                       self.length - idx);
             let mut slice = &mut self.bytes[idx..idx + char_len];
             write!(&mut slice, "{}", ch)
-                .ok()
                 .expect("inlinable_string: internal error: we should have enough space, we
                          checked above");
         }
