@@ -72,6 +72,9 @@
 #![cfg_attr(feature = "nightly", plugin(clippy))]
 #![cfg_attr(feature = "nightly", deny(clippy))]
 
+// Rust 1.0.0 doesn't have Result::expect :(
+#![cfg_attr(feature = "nightly", allow(ok_expect))]
+
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 #[cfg(test)]

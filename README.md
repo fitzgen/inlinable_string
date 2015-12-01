@@ -1,5 +1,9 @@
 # `inlinable_string`
 
+[![Build Status](https://travis-ci.org/fitzgen/inlinable_string.png?branch=master)](https://travis-ci.org/fitzgen/inlinable_string)
+
+[![Coverage Status](https://coveralls.io/repos/fitzgen/inlinable_string/badge.svg?branch=master&service=github)](https://coveralls.io/github/fitzgen/inlinable_string?branch=master)
+
 The `inlinable_string` crate provides the `InlinableString` type &mdash; an
 owned, grow-able UTF-8 string that stores small strings inline and avoids
 heap-allocation &mdash; and the `StringExt` trait which abstracts string
@@ -25,4 +29,4 @@ or add this to your `Cargo.toml`:
 
 ## Documentation
 
-TODO: link to hosted documentation here.
+[Documentation](http://fitzgen.github.io/inlinable_string/inlinable_string/index.html)
