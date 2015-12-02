@@ -85,6 +85,7 @@ pub use inline_string::{INLINE_STRING_CAPACITY, InlineString};
 pub use string_ext::StringExt;
 
 use std::borrow::{Borrow, Cow};
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash;
 use std::iter;
@@ -155,6 +156,19 @@ impl<'a> ops::Add<&'a str> for InlinableString {
     fn add(mut self, other: &str) -> InlinableString {
         self.push_str(other);
         self
+    }
+}
+
+impl PartialOrd<InlinableString> for InlinableString {
+    fn partial_cmp(&self, rhs: &InlinableString) -> Option<Ordering> {
+        Some(Ord::cmp(&self[..], &rhs[..]))
+    }
+}
+
+impl Ord for InlinableString {
+    #[inline]
+    fn cmp(&self, rhs: &InlinableString) -> Ordering {
+        Ord::cmp(&self[..], &rhs[..])
     }
 }
 
@@ -534,6 +548,7 @@ impl<'a> StringExt<'a> for InlinableString {
 #[cfg(test)]
 mod tests {
     use super::{InlinableString, StringExt, INLINE_STRING_CAPACITY};
+    use std::cmp::Ordering;
     use std::iter::FromIterator;
 
     #[test]
@@ -665,6 +680,14 @@ mod tests {
         assert_eq!(StringExt::pop(&mut s), Some('o'));
         assert_eq!(StringExt::pop(&mut s), Some('f'));
         assert_eq!(StringExt::pop(&mut s), None);
+    }
+
+    #[test]
+    fn test_ord() {
+        let s1 = InlinableString::from("foo");
+        let s2 = InlinableString::from("bar");
+        assert_eq!(Ord::cmp(&s1, &s2), Ordering::Greater);
+        assert_eq!(Ord::cmp(&s1, &s1), Ordering::Equal);
     }
 }
 
