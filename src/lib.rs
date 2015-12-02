@@ -664,9 +664,76 @@ mod tests {
 #[cfg(test)]
 #[cfg(feature = "nightly")]
 mod benches {
-    use test::Bencher;
+    use super::{InlinableString, StringExt};
+    use test::{Bencher, black_box};
 
     #[bench]
-    fn its_fast(b: &mut Bencher) {
+    fn bench_std_string_push_str_small(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = String::new();
+            s.push_str("foobar");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_push_str_small(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = InlinableString::new();
+            s.push_str("foobar");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_std_string_push_str_large(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = String::new();
+            s.push_str("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_push_str_large(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = InlinableString::new();
+            s.push_str("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_std_string_from_small(b: &mut Bencher) {
+        b.iter(|| {
+            let s = String::from("foobar");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_from_small(b: &mut Bencher) {
+        b.iter(|| {
+            let s = InlinableString::from("foobar");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_std_string_from_large(b: &mut Bencher) {
+        b.iter(|| {
+            let s = String::from(
+                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_from_large(b: &mut Bencher) {
+        b.iter(|| {
+            let s = InlinableString::from(
+                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            black_box(s);
+        });
     }
 }
