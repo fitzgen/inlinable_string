@@ -48,14 +48,17 @@ use std::str;
 ///
 /// Sometime in the future, when Rust's generics support specializing with
 /// compile-time static integers, this number should become configurable.
-pub const INLINE_STRING_CAPACITY: usize = 32;
+#[cfg(target_pointer_width="64")]
+pub const INLINE_STRING_CAPACITY: usize = 30;
+#[cfg(target_pointer_width="32")]
+pub const INLINE_STRING_CAPACITY: usize = 14;
 
 /// A short UTF-8 string that uses inline storage and does no heap allocation.
 ///
 /// See the [module level documentation](./index.html) for more.
 #[derive(Clone, Debug, Eq)]
 pub struct InlineString {
-    length: usize,
+    length: u8,
     bytes: [u8; INLINE_STRING_CAPACITY],
 }
 
@@ -68,7 +71,7 @@ impl AsRef<str> for InlineString {
     fn as_ref(&self) -> &str {
         self.assert_sanity();
         unsafe {
-            mem::transmute(&self.bytes[0..self.length])
+            mem::transmute(&self.bytes[0..self.len()])
         }
     }
 }
@@ -95,7 +98,7 @@ impl<'a> From<&'a str> for InlineString {
         unsafe {
             ptr::copy(string.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
         }
-        ss.length = string_len;
+        ss.length = string_len as u8;
 
         ss.assert_sanity();
         ss
@@ -153,7 +156,7 @@ impl ops::Index<ops::RangeFull> for InlineString {
     fn index(&self, _index: ops::RangeFull) -> &str {
         self.assert_sanity();
         unsafe {
-            mem::transmute(&self.bytes[0..self.length])
+            mem::transmute(&self.bytes[0..self.len()])
         }
     }
 }
@@ -165,7 +168,7 @@ impl ops::Deref for InlineString {
     fn deref(&self) -> &str {
         self.assert_sanity();
         unsafe {
-            mem::transmute(&self.bytes[0..self.length])
+            mem::transmute(&self.bytes[0..self.len()])
         }
     }
 }
@@ -220,9 +223,9 @@ impl InlineString {
     #[cfg_attr(feature = "nightly", allow(inline_always))]
     #[inline(always)]
     fn assert_sanity(&self) {
-        debug_assert!(self.length <= INLINE_STRING_CAPACITY,
+        debug_assert!(self.length as usize <= INLINE_STRING_CAPACITY,
                       "inlinable_string: internal error: length greater than capacity");
-        debug_assert!(str::from_utf8(&self.bytes[0..self.length]).is_ok(),
+        debug_assert!(str::from_utf8(&self.bytes[0..self.length as usize]).is_ok(),
                       "inlinable_string: internal error: contents are not valid UTF-8!");
     }
 
@@ -258,7 +261,7 @@ impl InlineString {
     #[inline]
     pub fn into_bytes(mut self) -> [u8; INLINE_STRING_CAPACITY] {
         self.assert_sanity();
-        for i in self.length..INLINE_STRING_CAPACITY {
+        for i in self.len()..INLINE_STRING_CAPACITY {
             self.bytes[i] = 0;
         }
         self.bytes
@@ -280,7 +283,7 @@ impl InlineString {
         self.assert_sanity();
 
         let string_len = string.len();
-        let new_length = self.length + string_len;
+        let new_length = self.len() + string_len;
 
         if new_length > INLINE_STRING_CAPACITY {
             return Err(NotEnoughSpaceError);
@@ -291,7 +294,7 @@ impl InlineString {
                       self.bytes.as_mut_ptr().offset(self.length as isize),
                       string_len);
         }
-        self.length = new_length;
+        self.length = new_length as u8;
 
         self.assert_sanity();
         Ok(())
@@ -315,19 +318,19 @@ impl InlineString {
         self.assert_sanity();
 
         let char_len = ch.len_utf8();
-        let new_length = self.length + char_len;
+        let new_length = self.len() + char_len;
 
         if new_length > INLINE_STRING_CAPACITY {
             return Err(NotEnoughSpaceError);
         }
 
         {
-            let mut slice = &mut self.bytes[self.length..INLINE_STRING_CAPACITY];
+            let mut slice = &mut self.bytes[self.length as usize..INLINE_STRING_CAPACITY];
             write!(&mut slice, "{}", ch)
                 .expect("inlinable_string: internal error: should have enough space, we
                          checked above");
         }
-        self.length = new_length;
+        self.length = new_length as u8;
 
         self.assert_sanity();
         Ok(())
@@ -346,7 +349,7 @@ impl InlineString {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.assert_sanity();
-        &self.bytes[0..self.length]
+        &self.bytes[0..self.len()]
     }
 
     /// Shortens a string to the specified length.
@@ -372,9 +375,9 @@ impl InlineString {
         assert!(self.char_indices().filter(|&(i, _)| i == new_len).next().is_some(),
                 "inlinable_string::InlineString::truncate: new_len is not a character
                  boundary");
-        assert!(new_len <= self.length);
+        assert!(new_len <= self.len());
 
-        self.length = new_len;
+        self.length = new_len as u8;
         self.assert_sanity();
     }
 
@@ -399,7 +402,7 @@ impl InlineString {
         match self.char_indices().rev().next() {
             None => None,
             Some((idx, ch)) => {
-                self.length = idx;
+                self.length = idx as u8;
                 self.assert_sanity();
                 Some(ch)
             }
@@ -427,7 +430,7 @@ impl InlineString {
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
         self.assert_sanity();
-        assert!(idx <= self.length);
+        assert!(idx <= self.len());
 
         match self.char_indices().filter(|&(i, _)| i == idx).next() {
             None => panic!("inlinable_string::InlineString::remove: idx does not lie on a
@@ -439,9 +442,9 @@ impl InlineString {
                 unsafe {
                     ptr::copy(self.bytes.as_ptr().offset(next as isize),
                               self.bytes.as_mut_ptr().offset(idx as isize),
-                              self.length - next);
+                              self.len() - next);
                 }
-                self.length = self.length - char_len;
+                self.length = self.length - char_len as u8;
 
                 self.assert_sanity();
                 ch
@@ -468,10 +471,10 @@ impl InlineString {
     #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) -> Result<(), NotEnoughSpaceError> {
         self.assert_sanity();
-        assert!(idx <= self.length);
+        assert!(idx <= self.len());
 
         let char_len = ch.len_utf8();
-        let new_length = self.length + char_len;
+        let new_length = self.len() + char_len;
 
         if new_length > INLINE_STRING_CAPACITY {
             return Err(NotEnoughSpaceError);
@@ -480,13 +483,13 @@ impl InlineString {
         unsafe {
             ptr::copy(self.bytes.as_ptr().offset(idx as isize),
                       self.bytes.as_mut_ptr().offset((idx + char_len) as isize),
-                      self.length - idx);
+                      self.len() - idx);
             let mut slice = &mut self.bytes[idx..idx + char_len];
             write!(&mut slice, "{}", ch)
                 .expect("inlinable_string: internal error: we should have enough space, we
                          checked above");
         }
-        self.length = new_length;
+        self.length = new_length as u8;
 
         self.assert_sanity();
         Ok(())
@@ -513,7 +516,7 @@ impl InlineString {
     #[inline]
     pub unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
         self.assert_sanity();
-        &mut self.bytes[0..self.length]
+        &mut self.bytes[0..self.length as usize]
     }
 
     /// Returns the number of bytes in this string.
@@ -529,7 +532,7 @@ impl InlineString {
     #[inline]
     pub fn len(&self) -> usize {
         self.assert_sanity();
-        self.length
+        self.length as usize
     }
 
     /// Returns true if the string contains no bytes
@@ -547,7 +550,7 @@ impl InlineString {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.assert_sanity();
-        self.len() == 0
+        self.length == 0
     }
 
     /// Truncates the string, returning it to 0 length.

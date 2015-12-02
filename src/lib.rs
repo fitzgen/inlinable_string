@@ -536,6 +536,12 @@ mod tests {
     use super::{InlinableString, StringExt, INLINE_STRING_CAPACITY};
     use std::iter::FromIterator;
 
+    #[test]
+    fn test_size() {
+        use std::mem::size_of;
+        assert_eq!(size_of::<InlinableString>(), 4 * size_of::<usize>());
+    }
+
     // First, specifically test operations that overflow InlineString's capacity
     // and require promoting the string to heap allocation.
 
