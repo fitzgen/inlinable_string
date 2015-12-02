@@ -194,6 +194,15 @@ impl AsRef<str> for InlinableString {
     }
 }
 
+impl AsMut<str> for InlinableString {
+    fn as_mut(&mut self) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => &mut s[..],
+            InlinableString::Inline(ref mut s) => &mut s[..],
+        }
+    }
+}
+
 impl<'a> From<&'a str> for InlinableString {
     fn from(string: &'a str) -> InlinableString {
         let string_len = string.len();
@@ -268,6 +277,46 @@ impl ops::Index<ops::RangeFull> for InlinableString {
     }
 }
 
+impl ops::IndexMut<ops::Range<usize>> for InlinableString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::Range<usize>) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => s.index_mut(index),
+            InlinableString::Inline(ref mut s) => s.index_mut(index),
+        }
+    }
+}
+
+impl ops::IndexMut<ops::RangeTo<usize>> for InlinableString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::RangeTo<usize>) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => s.index_mut(index),
+            InlinableString::Inline(ref mut s) => s.index_mut(index),
+        }
+    }
+}
+
+impl ops::IndexMut<ops::RangeFrom<usize>> for InlinableString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::RangeFrom<usize>) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => s.index_mut(index),
+            InlinableString::Inline(ref mut s) => s.index_mut(index),
+        }
+    }
+}
+
+impl ops::IndexMut<ops::RangeFull> for InlinableString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::RangeFull) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => s.index_mut(index),
+            InlinableString::Inline(ref mut s) => s.index_mut(index),
+        }
+    }
+}
+
 impl ops::Deref for InlinableString {
     type Target = str;
 
@@ -276,6 +325,16 @@ impl ops::Deref for InlinableString {
         match *self {
             InlinableString::Heap(ref s) => s.deref(),
             InlinableString::Inline(ref s) => s.deref(),
+        }
+    }
+}
+
+impl ops::DerefMut for InlinableString {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut str {
+        match *self {
+            InlinableString::Heap(ref mut s) => s.deref_mut(),
+            InlinableString::Inline(ref mut s) => s.deref_mut(),
         }
     }
 }

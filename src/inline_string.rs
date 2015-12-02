@@ -83,6 +83,25 @@ impl AsRef<[u8]> for InlineString {
     }
 }
 
+impl AsMut<str> for InlineString {
+    fn as_mut(&mut self) -> &mut str {
+        self.assert_sanity();
+        let length = self.len();
+        unsafe {
+            mem::transmute(&mut self.bytes[0..length])
+        }
+    }
+}
+
+impl AsMut<[u8]> for InlineString {
+    #[inline]
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.assert_sanity();
+        let length = self.len();
+        &mut self.bytes[0..length]
+    }
+}
+
 /// Create a `InlineString` from the given `&str`.
 ///
 /// # Panics
@@ -161,6 +180,41 @@ impl ops::Index<ops::RangeFull> for InlineString {
     }
 }
 
+impl ops::IndexMut<ops::Range<usize>> for InlineString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::Range<usize>) -> &mut str {
+        self.assert_sanity();
+        &mut self[..][index]
+    }
+}
+
+impl ops::IndexMut<ops::RangeTo<usize>> for InlineString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::RangeTo<usize>) -> &mut str {
+        self.assert_sanity();
+        &mut self[..][index]
+    }
+}
+
+impl ops::IndexMut<ops::RangeFrom<usize>> for InlineString {
+    #[inline]
+    fn index_mut(&mut self, index: ops::RangeFrom<usize>) -> &mut str {
+        self.assert_sanity();
+        &mut self[..][index]
+    }
+}
+
+impl ops::IndexMut<ops::RangeFull> for InlineString {
+    #[inline]
+    fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
+        self.assert_sanity();
+        let length = self.len();
+        unsafe {
+            mem::transmute(&mut self.bytes[0..length])
+        }
+    }
+}
+
 impl ops::Deref for InlineString {
     type Target = str;
 
@@ -169,6 +223,17 @@ impl ops::Deref for InlineString {
         self.assert_sanity();
         unsafe {
             mem::transmute(&self.bytes[0..self.len()])
+        }
+    }
+}
+
+impl ops::DerefMut for InlineString {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut str {
+        self.assert_sanity();
+        let length = self.len();
+        unsafe {
+            mem::transmute(&mut self.bytes[0..length])
         }
     }
 }
