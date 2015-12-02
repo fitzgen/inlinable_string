@@ -1,6 +1,6 @@
 # `inlinable_string`
 
-[![](http://meritbadge.herokuapp.com/inlinable_string) ![](https://img.shields.io/crates/d/inlinable_string)](https://crates.io/crates/inlinable_string.png)
+[![](http://meritbadge.herokuapp.com/inlinable_string) ![](https://img.shields.io/crates/d/inlinable_string.png)](https://crates.io/crates/inlinable_string)
 
 [![Build Status](https://travis-ci.org/fitzgen/inlinable_string.png?branch=master)](https://travis-ci.org/fitzgen/inlinable_string)
 
