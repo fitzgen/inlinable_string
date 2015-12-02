@@ -167,15 +167,15 @@ impl hash::Hash for InlinableString {
 
 impl Borrow<str> for InlinableString {
     fn borrow(&self) -> &str {
-        self.as_ref()
+        &*self
     }
 }
 
 impl AsRef<str> for InlinableString {
     fn as_ref(&self) -> &str {
         match *self {
-            InlinableString::Heap(ref s) => s.as_ref(),
-            InlinableString::Inline(ref s) => s.as_ref(),
+            InlinableString::Heap(ref s) => &*s,
+            InlinableString::Inline(ref s) => &*s,
         }
     }
 }
@@ -354,18 +354,19 @@ impl<'a> StringExt<'a> for InlinableString {
     #[inline]
     fn push_str(&mut self, string: &str) {
         let promoted = match *self {
-            InlinableString::Heap(ref mut s) => {
-                s.push_str(string);
-                return;
-            },
             InlinableString::Inline(ref mut s) => {
                 if s.push_str(string).is_ok() {
                     return;
                 }
-                let mut s = String::from(s.as_ref());
+                let mut promoted = String::with_capacity(string.len() + s.len());
+                promoted.push_str(&*s);
+                promoted.push_str(string);
+                promoted
+            },
+            InlinableString::Heap(ref mut s) => {
                 s.push_str(string);
-                s
-            }
+                return;
+            },
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -381,10 +382,6 @@ impl<'a> StringExt<'a> for InlinableString {
     #[inline]
     fn reserve(&mut self, additional: usize) {
         let promoted = match *self {
-            InlinableString::Heap(ref mut s) => {
-                s.reserve(additional);
-                return;
-            },
             InlinableString::Inline(ref s) => {
                 let new_capacity = s.len() + additional;
                 if new_capacity <= INLINE_STRING_CAPACITY {
@@ -393,7 +390,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 let mut promoted = String::with_capacity(new_capacity);
                 promoted.push_str(&s);
                 promoted
-            }
+            },
+            InlinableString::Heap(ref mut s) => {
+                s.reserve(additional);
+                return;
+            },
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -401,10 +402,6 @@ impl<'a> StringExt<'a> for InlinableString {
     #[inline]
     fn reserve_exact(&mut self, additional: usize) {
         let promoted = match *self {
-            InlinableString::Heap(ref mut s) => {
-                s.reserve_exact(additional);
-                return;
-            },
             InlinableString::Inline(ref s) => {
                 let new_capacity = s.len() + additional;
                 if new_capacity <= INLINE_STRING_CAPACITY {
@@ -413,7 +410,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 let mut promoted = String::with_capacity(new_capacity);
                 promoted.push_str(&s);
                 promoted
-            }
+            },
+            InlinableString::Heap(ref mut s) => {
+                s.reserve_exact(additional);
+                return;
+            },
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -422,7 +423,7 @@ impl<'a> StringExt<'a> for InlinableString {
     fn shrink_to_fit(&mut self) {
         if self.len() <= INLINE_STRING_CAPACITY {
             let demoted = if let InlinableString::Heap(ref s) = *self {
-                InlineString::from(s.as_ref())
+                InlineString::from(&s[..])
             } else {
                 return;
             };
@@ -439,19 +440,19 @@ impl<'a> StringExt<'a> for InlinableString {
     #[inline]
     fn push(&mut self, ch: char) {
         let promoted = match *self {
-            InlinableString::Heap(ref mut s) => {
-                s.push(ch);
-                return;
-            },
             InlinableString::Inline(ref mut s) => {
                 if s.push(ch).is_ok() {
                     return;
                 }
 
                 let mut promoted = String::with_capacity(s.len() + 1);
-                promoted.push_str(s.as_ref());
+                promoted.push_str(&*s);
                 promoted.push(ch);
                 promoted
+            },
+            InlinableString::Heap(ref mut s) => {
+                s.push(ch);
+                return;
             },
         };
 
@@ -667,38 +668,86 @@ mod benches {
     use super::{InlinableString, StringExt};
     use test::{Bencher, black_box};
 
+    const SMALL_STR: &'static str = "foobar";
+
+    const LARGE_STR: &'static str =
+        "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
+         abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+
     #[bench]
-    fn bench_std_string_push_str_small(b: &mut Bencher) {
+    fn bench_std_string_push_str_small_onto_empty(b: &mut Bencher) {
         b.iter(|| {
             let mut s = String::new();
-            s.push_str("foobar");
+            s.push_str(SMALL_STR);
             black_box(s);
         });
     }
 
     #[bench]
-    fn bench_inlinable_string_push_str_small(b: &mut Bencher) {
+    fn bench_inlinable_string_push_str_small_onto_empty(b: &mut Bencher) {
         b.iter(|| {
             let mut s = InlinableString::new();
-            s.push_str("foobar");
+            s.push_str(SMALL_STR);
             black_box(s);
         });
     }
 
     #[bench]
-    fn bench_std_string_push_str_large(b: &mut Bencher) {
+    fn bench_std_string_push_str_large_onto_empty(b: &mut Bencher) {
         b.iter(|| {
             let mut s = String::new();
-            s.push_str("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            s.push_str(LARGE_STR);
             black_box(s);
         });
     }
 
     #[bench]
-    fn bench_inlinable_string_push_str_large(b: &mut Bencher) {
+    fn bench_inlinable_string_push_str_large_onto_empty(b: &mut Bencher) {
         b.iter(|| {
             let mut s = InlinableString::new();
-            s.push_str("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            s.push_str(LARGE_STR);
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_std_string_push_str_small_onto_small(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = String::from(SMALL_STR);
+            s.push_str(SMALL_STR);
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_push_str_small_onto_small(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = InlinableString::from(SMALL_STR);
+            s.push_str(SMALL_STR);
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_std_string_push_str_large_onto_large(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = String::from(LARGE_STR);
+            s.push_str(LARGE_STR);
+            black_box(s);
+        });
+    }
+
+    #[bench]
+    fn bench_inlinable_string_push_str_large_onto_large(b: &mut Bencher) {
+        b.iter(|| {
+            let mut s = InlinableString::from(LARGE_STR);
+            s.push_str(LARGE_STR);
             black_box(s);
         });
     }
@@ -706,7 +755,7 @@ mod benches {
     #[bench]
     fn bench_std_string_from_small(b: &mut Bencher) {
         b.iter(|| {
-            let s = String::from("foobar");
+            let s = String::from(SMALL_STR);
             black_box(s);
         });
     }
@@ -714,7 +763,7 @@ mod benches {
     #[bench]
     fn bench_inlinable_string_from_small(b: &mut Bencher) {
         b.iter(|| {
-            let s = InlinableString::from("foobar");
+            let s = InlinableString::from(SMALL_STR);
             black_box(s);
         });
     }
@@ -722,8 +771,7 @@ mod benches {
     #[bench]
     fn bench_std_string_from_large(b: &mut Bencher) {
         b.iter(|| {
-            let s = String::from(
-                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            let s = String::from(LARGE_STR);
             black_box(s);
         });
     }
@@ -731,8 +779,7 @@ mod benches {
     #[bench]
     fn bench_inlinable_string_from_large(b: &mut Bencher) {
         b.iter(|| {
-            let s = InlinableString::from(
-                "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
+            let s = InlinableString::from(LARGE_STR);
             black_box(s);
         });
     }

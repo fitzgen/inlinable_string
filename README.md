@@ -28,30 +28,53 @@ some ideas with me!
 Constructing from a large `&str`:
 
 ```
-test benches::bench_inlinable_string_from_large     ... bench:          23 ns/iter (+/- 3)
-test benches::bench_std_string_from_large           ... bench:          22 ns/iter (+/- 1)
+test benches::bench_inlinable_string_from_large                ... bench:          32 ns/iter (+/- 6)
+test benches::bench_std_string_from_large                      ... bench:          31 ns/iter (+/- 10)
 ```
 
 Constructing from a small `&str`:
 
 ```
-test benches::bench_inlinable_string_from_small     ... bench:           1 ns/iter (+/- 0)
-test benches::bench_std_string_from_small           ... bench:          20 ns/iter (+/- 1)
+test benches::bench_inlinable_string_from_small                ... bench:           1 ns/iter (+/- 0)
+test benches::bench_std_string_from_small                      ... bench:          26 ns/iter (+/- 14)
 ```
 
 Pushing a large `&str` onto an empty string:
 
 ```
-test benches::bench_inlinable_string_push_str_large ... bench:          33 ns/iter (+/- 3)
-test benches::bench_std_string_push_str_large       ... bench:          24 ns/iter (+/- 1)
+test benches::bench_inlinable_string_push_str_large_onto_empty ... bench:          37 ns/iter (+/- 12)
+test benches::bench_std_string_push_str_large_onto_empty       ... bench:          30 ns/iter (+/- 9)
 ```
 
 Pushing a small `&str` onto an empty string:
 
 ```
-test benches::bench_inlinable_string_push_str_small ... bench:          11 ns/iter (+/- 1)
-test benches::bench_std_string_push_str_small       ... bench:          22 ns/iter (+/- 2)
+test benches::bench_inlinable_string_push_str_small_onto_empty ... bench:          11 ns/iter (+/- 4)
+test benches::bench_std_string_push_str_small_onto_empty       ... bench:          23 ns/iter (+/- 10)
 ```
+
+Pushing a large `&str` onto a large string:
+
+```
+test benches::bench_inlinable_string_push_str_large_onto_large ... bench:          80 ns/iter (+/- 24)
+test benches::bench_std_string_push_str_large_onto_large       ... bench:          78 ns/iter (+/- 23)
+```
+
+Pushing a small `&str` onto a small string:
+
+```
+test benches::bench_inlinable_string_push_str_small_onto_small ... bench:          17 ns/iter (+/- 6)
+test benches::bench_std_string_push_str_small_onto_small       ... bench:          60 ns/iter (+/- 15)
+```
+
+TLDR: If your string's size tends to stay within `INLINE_STRING_CAPACITY`, then
+`InlinableString` is much faster. Crossing the threshold and forcing a promotion
+from inline storage to heap allocation will slow it down more than
+`std::string::String` and you can see the expected drop off in such cases, but
+that is generally a one time cost. Once the strings are already larger than
+`INLINE_STRING_CAPACITY`, then the performance difference is
+negligible. However, take all this with a grain of salt! These are very micro
+benchmarks and your (hashtag) Real World workload may differ greatly!
 
 ## Install
 
