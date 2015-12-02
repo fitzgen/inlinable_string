@@ -4,7 +4,7 @@ name = "inlinable_string"
 
 description = "The `inlinable_string` crate provides the `InlinableString` type -- an owned, grow-able UTF-8 string that stores small strings inline and avoids heap-allocation -- and the `StringExt` trait which abstracts string operations over both `std::string::String` and `InlinableString` (or even your own custom string type)."
 
-version = "0.1.1"
+version = "0.1.2"
 license = "Apache-2.0/MIT"
 keywords = ["string", "inline", "inlinable"]
 readme = "./README.md"
