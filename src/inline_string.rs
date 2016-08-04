@@ -115,7 +115,7 @@ impl<'a> From<&'a str> for InlineString {
 
         let mut ss = InlineString::new();
         unsafe {
-            ptr::copy(string.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
+            ptr::copy_nonoverlapping(string.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
         }
         ss.length = string_len as u8;
 
@@ -355,7 +355,7 @@ impl InlineString {
         }
 
         unsafe {
-            ptr::copy(string.as_ptr(),
+            ptr::copy_nonoverlapping(string.as_ptr(),
                       self.bytes.as_mut_ptr().offset(self.length as isize),
                       string_len);
         }
