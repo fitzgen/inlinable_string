@@ -207,7 +207,7 @@ impl<'a> From<&'a str> for InlinableString {
     #[inline]
     fn from(string: &'a str) -> InlinableString {
         if string.len() <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(InlineString::from(string))
+            InlinableString::Inline(string.into())
         } else {
             InlinableString::Heap(string.into())
         }
@@ -217,7 +217,11 @@ impl<'a> From<&'a str> for InlinableString {
 impl From<String> for InlinableString {
     #[inline]
     fn from(string: String) -> InlinableString {
-        InlinableString::Heap(string)
+        if string.len() <= INLINE_STRING_CAPACITY {
+            InlinableString::Inline(string.as_str().into())
+        } else {
+            InlinableString::Heap(string)
+        }
     }
 }
 
