@@ -197,19 +197,30 @@ impl AsRef<str> for InlinableString {
 impl AsMut<str> for InlinableString {
     fn as_mut(&mut self) -> &mut str {
         match *self {
-            InlinableString::Heap(ref mut s) => &mut s[..],
+            InlinableString::Heap(ref mut s) => s.as_mut_str(),
             InlinableString::Inline(ref mut s) => &mut s[..],
         }
     }
 }
 
 impl<'a> From<&'a str> for InlinableString {
+    #[inline]
     fn from(string: &'a str) -> InlinableString {
-        let string_len = string.len();
-        if string_len <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(InlineString::from(string))
+        if string.len() <= INLINE_STRING_CAPACITY {
+            InlinableString::Inline(string.into())
         } else {
-            InlinableString::Heap(String::from(string))
+            InlinableString::Heap(string.into())
+        }
+    }
+}
+
+impl From<String> for InlinableString {
+    #[inline]
+    fn from(string: String) -> InlinableString {
+        if string.len() <= INLINE_STRING_CAPACITY {
+            InlinableString::Inline(string.as_str().into())
+        } else {
+            InlinableString::Heap(string)
         }
     }
 }
