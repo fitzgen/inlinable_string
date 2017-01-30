@@ -127,7 +127,7 @@ impl<'a> From<&'a str> for InlineString {
 impl fmt::Display for InlineString {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         self.assert_sanity();
-        write!(f, "{}", &*self)
+        write!(f, "{}", self as &str)
     }
 }
 
