@@ -759,6 +759,22 @@ mod tests {
         assert_eq!(Ord::cmp(&s1, &s2), Ordering::Greater);
         assert_eq!(Ord::cmp(&s1, &s1), Ordering::Equal);
     }
+    
+    #[test]
+    fn test_display() {
+        let short = InlinableString::from("he");
+        let long = InlinableString::from("hello world");
+        assert_eq!(format!("{}", short), "he".to_string());
+        assert_eq!(format!("{}", long), "hello world".to_string());
+    }
+    
+    #[test]
+    fn test_debug() {
+        let short = InlinableString::from("he");
+        let long = InlinableString::from("hello world");
+        println!("{:?}", short);
+        println!("{:?}", long);
+    }
 }
 
 #[cfg(test)]
