@@ -22,8 +22,7 @@ before_script:
 
 script:
 - |
-  travis-cargo build &&
-  travis-cargo test &&
+  travis-cargo test -- --features serde &&
   travis-cargo bench &&
   travis-cargo --only stable doc
 

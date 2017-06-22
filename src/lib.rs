@@ -65,6 +65,13 @@
 //! consider using the more restrictive
 //! [`InlineString`](./inline_string/struct.InlineString.html) type. If `member` is
 //! not always small, then it should probably be left as a `String`.
+//! 
+//! # Serialization
+//! 
+//! `InlinableString` implements [`serde`][serde-docs]'s `Serialize` and `Deserialize` traits.
+//! Add the `serde` feature to your `Cargo.toml` to enable serialization.
+//! 
+//! [serde-docs]: https://serde.rs
 
 #![forbid(missing_docs)]
 
@@ -74,9 +81,18 @@
 
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
+#[cfg(feature = "serde")]
+extern crate serde;
+
+#[cfg(all(test, feature = "serde"))]
+extern crate serde_test;
+
 #[cfg(test)]
 #[cfg(feature = "nightly")]
 extern crate test;
+
+#[cfg(feature = "serde")]
+mod serde_impl;
 
 pub mod inline_string;
 pub mod string_ext;

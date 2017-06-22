@@ -17,5 +17,12 @@ repository = "https://github.com/fitzgen/inlinable_string"
 optional = true
 version = "0.0.27"
 
+[dependencies.serde]
+optional = true
+version = "1"
+
 [features]
 nightly = ["clippy"]
+
+[dev-dependencies]
+serde_test = "1"
