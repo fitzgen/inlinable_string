@@ -131,6 +131,15 @@ impl fmt::Display for InlineString {
     }
 }
 
+impl fmt::Write for InlineString {
+    fn write_char(&mut self, ch: char) -> Result<(), fmt::Error> {
+        self.push(ch).map_err(|_| fmt::Error)
+    }
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        self.push_str(s).map_err(|_| fmt::Error)
+    }
+}
+
 impl hash::Hash for InlineString {
     #[inline]
     fn hash<H: hash::Hasher>(&self, hasher: &mut H) {
@@ -673,6 +682,19 @@ mod tests {
         }
 
         assert_eq!(s.insert(0, 'a'), Err(NotEnoughSpaceError));
+    }
+
+    #[test]
+    fn test_write() {
+        use fmt::{Error, Write};
+
+        let mut s = InlineString::new();
+
+        for _ in 0..INLINE_STRING_CAPACITY {
+            assert!(write!(&mut s, "a").is_ok());
+        }
+
+        assert_eq!(write!(&mut s, "a"), Err(Error));
     }
 }
 
