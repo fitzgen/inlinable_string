@@ -689,12 +689,15 @@ mod tests {
         use fmt::{Error, Write};
 
         let mut s = InlineString::new();
+        let mut normal_string = String::new();
 
         for _ in 0..INLINE_STRING_CAPACITY {
             assert!(write!(&mut s, "a").is_ok());
+            assert!(write!(&mut normal_string, "a").is_ok());
         }
 
         assert_eq!(write!(&mut s, "a"), Err(Error));
+        assert_eq!(&normal_string[..], &s[..]);
     }
 }
 
