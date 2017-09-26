@@ -256,6 +256,17 @@ impl fmt::Display for InlinableString {
     }
 }
 
+impl fmt::Write for InlinableString {
+    fn write_char(&mut self, ch: char) -> Result<(), fmt::Error> {
+        self.push(ch);
+        Ok(())
+    }
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        self.push_str(s);
+        Ok(())
+    }
+}
+
 impl ops::Index<ops::Range<usize>> for InlinableString {
     type Output = str;
 
@@ -655,6 +666,19 @@ mod tests {
         let long_str = "this is a really long string that is much larger than
                         INLINE_STRING_CAPACITY and so cannot be stored inline.";
         s.push_str(long_str);
+        assert_eq!(s, String::from("small") + long_str);
+    }
+
+    #[test]
+    fn test_write() {
+        use fmt::Write;
+        let mut s = InlinableString::new();
+        write!(&mut s, "small").expect("!write");
+        assert_eq!(s, "small");
+
+        let long_str = "this is a really long string that is much larger than
+                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
+        write!(&mut s, "{}", long_str).expect("!write");
         assert_eq!(s, String::from("small") + long_str);
     }
 
