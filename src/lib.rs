@@ -113,12 +113,18 @@ use std::string::{FromUtf8Error, FromUtf16Error};
 /// stack.
 ///
 /// See the [module level documentation](./index.html) for more.
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Eq)]
 pub enum InlinableString {
     /// A heap-allocated string.
     Heap(String),
     /// A small string stored inline.
     Inline(InlineString),
+}
+
+impl fmt::Debug for InlinableString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self as &str, f)
+    }
 }
 
 impl iter::FromIterator<char> for InlinableString {
@@ -811,9 +817,9 @@ mod tests {
     #[test]
     fn test_debug() {
         let short = InlinableString::from("he");
-        let long = InlinableString::from("hello world");
-        println!("{:?}", short);
-        println!("{:?}", long);
+        let long = InlinableString::from("hello world hello world hello world");
+        assert_eq!(format!("{:?}", short), "\"he\"");
+        assert_eq!(format!("{:?}", long), "\"hello world hello world hello world\"");
     }
 }
 
