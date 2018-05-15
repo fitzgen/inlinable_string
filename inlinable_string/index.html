@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `inlinable_string` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, inlinable_string">
+
+    <title>inlinable_string - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc mod">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Crate inlinable_string</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'inlinable_string', ty: 'mod', relpath: '../'};</script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>inlinable_string</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/inlinable_string/lib.rs.html#9-947' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>The <code>inlinable_string</code> crate provides the
+<a href="./enum.InlinableString.html"><code>InlinableString</code></a> type — an owned,
+grow-able UTF-8 string that stores small strings inline and avoids
+heap-allocation — and the
+<a href="./string_ext/trait.StringExt.html"><code>StringExt</code></a> trait which abstracts
+string operations over both <code>std::string::String</code> and <code>InlinableString</code> (or
+even your own custom string type).</p>
+<p><code>StringExt</code>'s API is mostly identical to <code>std::string::String</code>; unstable and
+deprecated methods are not included. A <code>StringExt</code> implementation is
+provided for both <code>std::string::String</code> and <code>InlinableString</code>. This enables
+<code>InlinableString</code> to generally work as a drop-in replacement for
+<code>std::string::String</code> and <code>&amp;StringExt</code> to work with references to either
+type.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">inlinable_string</span>::{<span class="ident">InlinableString</span>, <span class="ident">StringExt</span>};
+
+<span class="comment">// Small strings are stored inline and don&#39;t perform heap-allocation.</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">InlinableString</span>::<span class="ident">from</span>(<span class="string">&quot;small&quot;</span>);
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">capacity</span>(), <span class="ident">inlinable_string</span>::<span class="ident">INLINE_STRING_CAPACITY</span>);
+
+<span class="comment">// Inline strings are transparently promoted to heap-allocated strings when</span>
+<span class="comment">// they grow too big.</span>
+<span class="ident">s</span>.<span class="ident">push_str</span>(<span class="string">&quot;a really long string that&#39;s bigger than `INLINE_STRING_CAPACITY`&quot;</span>);
+<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">capacity</span>() <span class="op">&gt;</span> <span class="ident">inlinable_string</span>::<span class="ident">INLINE_STRING_CAPACITY</span>);
+
+<span class="comment">// This method can work on strings potentially stored inline on the stack,</span>
+<span class="comment">// on the heap, or plain old `std::string::String`s!</span>
+<span class="kw">fn</span> <span class="ident">takes_a_string_reference</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StringExt</span>) {
+   <span class="comment">// Do something with the string...</span>
+   <span class="ident">string</span>.<span class="ident">push_str</span>(<span class="string">&quot;it works!&quot;</span>);
+}
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s1</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;this is a plain std::string::String&quot;</span>);
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s2</span> <span class="op">=</span> <span class="ident">InlinableString</span>::<span class="ident">from</span>(<span class="string">&quot;inline&quot;</span>);
+
+<span class="comment">// Both work!</span>
+<span class="ident">takes_a_string_reference</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s1</span>);
+<span class="ident">takes_a_string_reference</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s2</span>);</pre>
+<h1 id="porting-your-code" class="section-header"><a href="#porting-your-code">Porting Your Code</a></h1>
+<ul>
+<li>
+<p>If <code>my_string</code> is always on the stack: <code>let my_string = String::new();</code> →
+<code>let my_string = InlinableString::new();</code></p>
+</li>
+<li>
+<p><code>fn foo(string: &amp;mut String) { ... }</code> → <code>fn foo(string: &amp;mut StringExt) { ... }</code></p>
+</li>
+<li>
+<p><code>fn foo(string: &amp;str) { ... }</code> does not need to be modified.</p>
+</li>
+<li>
+<p><code>struct S { member: String }</code> is a little trickier. If <code>S</code> is always stack
+allocated, it probably makes sense to make <code>member</code> be of type
+<code>InlinableString</code>. If <code>S</code> is heap-allocated and <code>member</code> is <em>always</em> small,
+consider using the more restrictive
+<a href="./inline_string/struct.InlineString.html"><code>InlineString</code></a> type. If <code>member</code> is
+not always small, then it should probably be left as a <code>String</code>.</p>
+</li>
+</ul>
+<h1 id="serialization" class="section-header"><a href="#serialization">Serialization</a></h1>
+<p><code>InlinableString</code> implements <a href="https://serde.rs"><code>serde</code></a>'s <code>Serialize</code> and <code>Deserialize</code> traits.
+Add the <code>serde</code> feature to your <code>Cargo.toml</code> to enable serialization.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use inline_string::<a class="constant" href="../inlinable_string/inline_string/constant.INLINE_STRING_CAPACITY.html" title="constant inlinable_string::inline_string::INLINE_STRING_CAPACITY">INLINE_STRING_CAPACITY</a>;</code></td></tr><tr><td><code>pub use inline_string::<a class="struct" href="../inlinable_string/inline_string/struct.InlineString.html" title="struct inlinable_string::inline_string::InlineString">InlineString</a>;</code></td></tr><tr><td><code>pub use string_ext::<a class="trait" href="../inlinable_string/string_ext/trait.StringExt.html" title="trait inlinable_string::string_ext::StringExt">StringExt</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="inline_string/index.html"
+                                  title='mod inlinable_string::inline_string'>inline_string</a></td>
+                           <td class='docblock-short'>
+                                <p>A short UTF-8 string that uses inline storage and does no heap
+allocation. It may be no longer than <code>INLINE_STRING_CAPACITY</code> bytes long.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="string_ext/index.html"
+                                  title='mod inlinable_string::string_ext'>string_ext</a></td>
+                           <td class='docblock-short'>
+                                <p>A trait that exists to abstract string operations over any number of
+concrete string type implementations.</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.InlinableString.html"
+                                  title='enum inlinable_string::InlinableString'>InlinableString</a></td>
+                           <td class='docblock-short'>
+                                <p>An owned, grow-able UTF-8 string that allocates short strings inline on the
+stack.</p>
+
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "inlinable_string";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

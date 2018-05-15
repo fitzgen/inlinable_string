@@ -1,0 +1,1 @@
+initSidebarItems({"trait":[["StringExt","A trait that exists to abstract string operations over any number of concrete string type implementations."]]});
