@@ -31,7 +31,7 @@ impl<'de> Deserialize<'de> for InlinableString {
             }
         }
 
-        deserializer.deserialize_any(InlinableStringVisitor)
+        deserializer.deserialize_str(InlinableStringVisitor)
     }
 }
 
