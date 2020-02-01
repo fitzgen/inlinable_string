@@ -29,9 +29,15 @@ impl<'de> Deserialize<'de> for InlinableString {
             {
                 Ok(v.into())
             }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+                where E: DeError
+            {
+                Ok(v.into())
+            }
         }
 
-        deserializer.deserialize_any(InlinableStringVisitor)
+        deserializer.deserialize_str(InlinableStringVisitor)
     }
 }
 
