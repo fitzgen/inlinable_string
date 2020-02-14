@@ -492,7 +492,7 @@ impl InlineString {
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
         self.assert_sanity();
-        assert!(idx <= self.len());
+        assert!(idx < self.len());
 
         match self.char_indices().find(|&(i, _)| i == idx) {
             None => panic!(
