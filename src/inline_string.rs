@@ -511,7 +511,7 @@ impl InlineString {
                         self.len() - next,
                     );
                 }
-                self.length = self.length - char_len as u8;
+                self.length -= char_len as u8;
 
                 self.assert_sanity();
                 ch
