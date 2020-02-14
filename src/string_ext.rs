@@ -14,7 +14,6 @@
 use std::borrow::{Borrow, Cow};
 use std::cmp::PartialEq;
 use std::fmt::Display;
-use std::mem;
 use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// A trait that exists to abstract string operations over any number of
@@ -539,7 +538,7 @@ impl<'a> StringExt<'a> for String {
 
     #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
-        mem::transmute(&mut **self)
+        &mut *(self.as_mut_str() as *mut str as *mut [u8])
     }
 
     #[inline]
