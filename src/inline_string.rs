@@ -249,13 +249,6 @@ impl PartialEq<InlineString> for InlineString {
         rhs.assert_sanity();
         PartialEq::eq(&self[..], &rhs[..])
     }
-
-    #[inline]
-    fn ne(&self, rhs: &InlineString) -> bool {
-        self.assert_sanity();
-        rhs.assert_sanity();
-        PartialEq::ne(&self[..], &rhs[..])
-    }
 }
 
 macro_rules! impl_eq {
@@ -265,20 +258,12 @@ macro_rules! impl_eq {
             fn eq(&self, other: &$rhs) -> bool {
                 PartialEq::eq(&self[..], &other[..])
             }
-            #[inline]
-            fn ne(&self, other: &$rhs) -> bool {
-                PartialEq::ne(&self[..], &other[..])
-            }
         }
 
         impl<'a> PartialEq<$lhs> for $rhs {
             #[inline]
             fn eq(&self, other: &$lhs) -> bool {
                 PartialEq::eq(&self[..], &other[..])
-            }
-            #[inline]
-            fn ne(&self, other: &$lhs) -> bool {
-                PartialEq::ne(&self[..], &other[..])
             }
         }
     };

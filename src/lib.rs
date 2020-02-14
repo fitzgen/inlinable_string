@@ -386,11 +386,6 @@ impl PartialEq<InlinableString> for InlinableString {
     fn eq(&self, rhs: &InlinableString) -> bool {
         PartialEq::eq(&self[..], &rhs[..])
     }
-
-    #[inline]
-    fn ne(&self, rhs: &InlinableString) -> bool {
-        PartialEq::ne(&self[..], &rhs[..])
-    }
 }
 
 macro_rules! impl_eq {
@@ -400,20 +395,12 @@ macro_rules! impl_eq {
             fn eq(&self, other: &$rhs) -> bool {
                 PartialEq::eq(&self[..], &other[..])
             }
-            #[inline]
-            fn ne(&self, other: &$rhs) -> bool {
-                PartialEq::ne(&self[..], &other[..])
-            }
         }
 
         impl<'a> PartialEq<$lhs> for $rhs {
             #[inline]
             fn eq(&self, other: &$lhs) -> bool {
                 PartialEq::eq(&self[..], &other[..])
-            }
-            #[inline]
-            fn ne(&self, other: &$lhs) -> bool {
-                PartialEq::ne(&self[..], &other[..])
             }
         }
     };
