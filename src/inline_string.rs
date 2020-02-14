@@ -506,8 +506,8 @@ impl InlineString {
 
                 unsafe {
                     ptr::copy(
-                        self.bytes.as_ptr().offset(next as isize),
-                        self.bytes.as_mut_ptr().offset(idx as isize),
+                        self.bytes.as_ptr().add(next),
+                        self.bytes.as_mut_ptr().add(idx),
                         self.len() - next,
                     );
                 }
@@ -549,8 +549,8 @@ impl InlineString {
 
         unsafe {
             ptr::copy(
-                self.bytes.as_ptr().offset(idx as isize),
-                self.bytes.as_mut_ptr().offset((idx + char_len) as isize),
+                self.bytes.as_ptr().add(idx),
+                self.bytes.as_mut_ptr().add(idx + char_len),
                 self.len() - idx,
             );
             let mut slice = &mut self.bytes[idx..idx + char_len];
