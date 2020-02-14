@@ -177,8 +177,7 @@ impl ops::Index<ops::RangeFull> for InlineString {
 
     #[inline]
     fn index(&self, _index: ops::RangeFull) -> &str {
-        self.assert_sanity();
-        unsafe { str::from_utf8_unchecked(&self.bytes[..self.len()]) }
+        self.as_ref()
     }
 }
 
@@ -209,9 +208,7 @@ impl ops::IndexMut<ops::RangeFrom<usize>> for InlineString {
 impl ops::IndexMut<ops::RangeFull> for InlineString {
     #[inline]
     fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
-        self.assert_sanity();
-        let length = self.len();
-        unsafe { str::from_utf8_unchecked_mut(&mut self.bytes[..length]) }
+        self.as_mut()
     }
 }
 
@@ -220,17 +217,14 @@ impl ops::Deref for InlineString {
 
     #[inline]
     fn deref(&self) -> &str {
-        self.assert_sanity();
-        unsafe { str::from_utf8_unchecked(&self.bytes[..self.len()]) }
+        self.as_ref()
     }
 }
 
 impl ops::DerefMut for InlineString {
     #[inline]
     fn deref_mut(&mut self) -> &mut str {
-        self.assert_sanity();
-        let length = self.len();
-        unsafe { str::from_utf8_unchecked_mut(&mut self.bytes[..length]) }
+        self.as_mut()
     }
 }
 
