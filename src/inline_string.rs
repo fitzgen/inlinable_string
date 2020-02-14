@@ -434,10 +434,7 @@ impl InlineString {
         self.assert_sanity();
 
         assert!(
-            self.char_indices()
-                .filter(|&(i, _)| i == new_len)
-                .next()
-                .is_some(),
+            self.char_indices().any(|(i, _)| i == new_len),
             "inlinable_string::InlineString::truncate: new_len is not a character
                  boundary"
         );
@@ -498,7 +495,7 @@ impl InlineString {
         self.assert_sanity();
         assert!(idx <= self.len());
 
-        match self.char_indices().filter(|&(i, _)| i == idx).next() {
+        match self.char_indices().find(|&(i, _)| i == idx) {
             None => panic!(
                 "inlinable_string::InlineString::remove: idx does not lie on a
                             character boundary"
