@@ -433,7 +433,7 @@ impl InlineString {
         self.assert_sanity();
 
         assert!(
-            self.char_indices().any(|(i, _)| i == new_len),
+            self.is_char_boundary(new_len),
             "inlinable_string::InlineString::truncate: new_len is not a character
                  boundary"
         );
@@ -494,28 +494,29 @@ impl InlineString {
         self.assert_sanity();
         assert!(idx < self.len());
 
-        match self.char_indices().find(|&(i, _)| i == idx) {
-            None => panic!(
+        let ch = self
+            .get(idx..)
+            .expect(
                 "inlinable_string::InlineString::remove: idx does not lie on a
-                            character boundary"
-            ),
-            Some((_, ch)) => {
-                let char_len = ch.len_utf8();
-                let next = idx + char_len;
+                            character boundary",
+            )
+            .chars()
+            .next()
+            .expect("Should be `Some` because `idx < self.len()`");
+        let char_len = ch.len_utf8();
+        let next = idx + char_len;
 
-                unsafe {
-                    ptr::copy(
-                        self.bytes.as_ptr().add(next),
-                        self.bytes.as_mut_ptr().add(idx),
-                        self.len() - next,
-                    );
-                }
-                self.length -= char_len as u8;
-
-                self.assert_sanity();
-                ch
-            }
+        unsafe {
+            ptr::copy(
+                self.bytes.as_ptr().add(next),
+                self.bytes.as_mut_ptr().add(idx),
+                self.len() - next,
+            );
         }
+        self.length -= char_len as u8;
+
+        self.assert_sanity();
+        ch
     }
 
     /// Inserts a character into the string buffer at byte position `idx`.
