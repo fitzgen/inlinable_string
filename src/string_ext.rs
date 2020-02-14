@@ -38,7 +38,6 @@ pub trait StringExt<'a>:
     ///
     /// let s = InlinableString::new();
     /// ```
-    #[inline]
     fn new() -> Self
     where
         Self: Sized;
@@ -55,7 +54,6 @@ pub trait StringExt<'a>:
     ///
     /// let s = InlinableString::with_capacity(10);
     /// ```
-    #[inline]
     fn with_capacity(capacity: usize) -> Self
     where
         Self: Sized;
@@ -82,7 +80,6 @@ pub trait StringExt<'a>:
     /// let err = s.utf8_error();
     /// assert_eq!(s.into_bytes(), [240, 144, 128]);
     /// ```
-    #[inline]
     fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error>
     where
         Self: Sized;
@@ -144,7 +141,6 @@ pub trait StringExt<'a>:
     /// assert_eq!(InlinableString::from_utf16_lossy(v),
     ///            InlinableString::from("𝄞mus\u{FFFD}ic\u{FFFD}"));
     /// ```
-    #[inline]
     fn from_utf16_lossy(v: &[u16]) -> Self
     where
         Self: Sized;
@@ -161,7 +157,6 @@ pub trait StringExt<'a>:
     ///   for the invariants it expects, they also apply to this function.
     ///
     /// * We assume that the `Vec` contains valid UTF-8.
-    #[inline]
     unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self
     where
         Self: Sized;
@@ -169,7 +164,6 @@ pub trait StringExt<'a>:
     /// Converts a vector of bytes to a new `InlinableString` without checking
     /// if it contains valid UTF-8. This is unsafe because it assumes that the
     /// UTF-8-ness of the vector has already been validated.
-    #[inline]
     unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self
     where
         Self: Sized;
@@ -185,7 +179,6 @@ pub trait StringExt<'a>:
     /// let bytes = s.into_bytes();
     /// assert_eq!(bytes, [104, 101, 108, 108, 111]);
     /// ```
-    #[inline]
     fn into_bytes(self) -> Vec<u8>;
 
     /// Pushes the given string onto this string buffer.
@@ -199,7 +192,6 @@ pub trait StringExt<'a>:
     /// s.push_str("bar");
     /// assert_eq!(s, "foobar");
     /// ```
-    #[inline]
     fn push_str(&mut self, string: &str);
 
     /// Returns the number of bytes that this string buffer can hold without
@@ -213,7 +205,6 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::with_capacity(10);
     /// assert!(s.capacity() >= 10);
     /// ```
-    #[inline]
     fn capacity(&self) -> usize;
 
     /// Reserves capacity for at least `additional` more bytes to be inserted
@@ -233,7 +224,6 @@ pub trait StringExt<'a>:
     /// s.reserve(10);
     /// assert!(s.capacity() >= 10);
     /// ```
-    #[inline]
     fn reserve(&mut self, additional: usize);
 
     /// Reserves the minimum capacity for exactly `additional` more bytes to be
@@ -257,7 +247,6 @@ pub trait StringExt<'a>:
     /// s.reserve_exact(10);
     /// assert!(s.capacity() >= 10);
     /// ```
-    #[inline]
     fn reserve_exact(&mut self, additional: usize);
 
     /// Shrinks the capacity of this string buffer to match its length. If the
@@ -275,7 +264,6 @@ pub trait StringExt<'a>:
     /// s.shrink_to_fit();
     /// assert_eq!(s.capacity(), inlinable_string::INLINE_STRING_CAPACITY);
     /// ```
-    #[inline]
     fn shrink_to_fit(&mut self);
 
     /// Adds the given character to the end of the string.
@@ -291,7 +279,6 @@ pub trait StringExt<'a>:
     /// s.push('3');
     /// assert_eq!(s, "abc123");
     /// ```
-    #[inline]
     fn push(&mut self, ch: char);
 
     /// Works with the underlying buffer as a byte slice.
@@ -304,7 +291,6 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::from("hello");
     /// assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
     /// ```
-    #[inline]
     fn as_bytes(&self) -> &[u8];
 
     /// Shortens a string to the specified length.
@@ -323,7 +309,6 @@ pub trait StringExt<'a>:
     /// s.truncate(2);
     /// assert_eq!(s, "he");
     /// ```
-    #[inline]
     fn truncate(&mut self, new_len: usize);
 
     /// Removes the last character from the string buffer and returns it.
@@ -340,7 +325,6 @@ pub trait StringExt<'a>:
     /// assert_eq!(s.pop(), Some('f'));
     /// assert_eq!(s.pop(), None);
     /// ```
-    #[inline]
     fn pop(&mut self) -> Option<char>;
 
     /// Removes the character from the string buffer at byte position `idx` and
@@ -366,7 +350,6 @@ pub trait StringExt<'a>:
     /// assert_eq!(s.remove(1), 'o');
     /// assert_eq!(s.remove(0), 'o');
     /// ```
-    #[inline]
     fn remove(&mut self, idx: usize) -> char;
 
     /// Inserts a character into the string buffer at byte position `idx`.
@@ -390,7 +373,6 @@ pub trait StringExt<'a>:
     ///
     /// If `idx` does not lie on a character boundary or is out of bounds, then
     /// this function will panic.
-    #[inline]
     fn insert(&mut self, idx: usize, ch: char);
 
     /// Views the string buffer as a mutable sequence of bytes.
@@ -411,7 +393,6 @@ pub trait StringExt<'a>:
     /// }
     /// assert_eq!(s, "olleh");
     /// ```
-    #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8];
 
     /// Returns the number of bytes in this string.
@@ -424,7 +405,6 @@ pub trait StringExt<'a>:
     /// let a = InlinableString::from("foo");
     /// assert_eq!(a.len(), 3);
     /// ```
-    #[inline]
     fn len(&self) -> usize;
 
     /// Returns true if the string contains no bytes
