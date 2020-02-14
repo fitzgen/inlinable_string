@@ -38,7 +38,6 @@ use std::borrow;
 use std::fmt;
 use std::hash;
 use std::io::Write;
-use std::mem;
 use std::ops;
 use std::ptr;
 use std::str;
@@ -70,7 +69,7 @@ pub struct NotEnoughSpaceError;
 impl AsRef<str> for InlineString {
     fn as_ref(&self) -> &str {
         self.assert_sanity();
-        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
+        unsafe { str::from_utf8_unchecked(&self.bytes[..self.len()]) }
     }
 }
 
@@ -85,7 +84,7 @@ impl AsMut<str> for InlineString {
     fn as_mut(&mut self) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe { mem::transmute(&mut self.bytes[0..length]) }
+        unsafe { str::from_utf8_unchecked_mut(&mut self.bytes[..length]) }
     }
 }
 
@@ -179,7 +178,7 @@ impl ops::Index<ops::RangeFull> for InlineString {
     #[inline]
     fn index(&self, _index: ops::RangeFull) -> &str {
         self.assert_sanity();
-        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
+        unsafe { str::from_utf8_unchecked(&self.bytes[..self.len()]) }
     }
 }
 
@@ -212,7 +211,7 @@ impl ops::IndexMut<ops::RangeFull> for InlineString {
     fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe { mem::transmute(&mut self.bytes[0..length]) }
+        unsafe { str::from_utf8_unchecked_mut(&mut self.bytes[..length]) }
     }
 }
 
@@ -222,7 +221,7 @@ impl ops::Deref for InlineString {
     #[inline]
     fn deref(&self) -> &str {
         self.assert_sanity();
-        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
+        unsafe { str::from_utf8_unchecked(&self.bytes[..self.len()]) }
     }
 }
 
@@ -231,7 +230,7 @@ impl ops::DerefMut for InlineString {
     fn deref_mut(&mut self) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe { mem::transmute(&mut self.bytes[0..length]) }
+        unsafe { str::from_utf8_unchecked_mut(&mut self.bytes[..length]) }
     }
 }
 
