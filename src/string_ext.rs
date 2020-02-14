@@ -15,15 +15,19 @@ use std::borrow::{Borrow, Cow};
 use std::cmp::PartialEq;
 use std::fmt::Display;
 use std::mem;
-use std::string::{FromUtf8Error, FromUtf16Error};
+use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// A trait that exists to abstract string operations over any number of
 /// concrete string type implementations.
 ///
 /// See the [crate level documentation](./../index.html) for more.
 pub trait StringExt<'a>:
-    Borrow<str> + Display + PartialEq<str> + PartialEq<&'a str> + PartialEq<String> +
-    PartialEq<Cow<'a, str>>
+    Borrow<str>
+    + Display
+    + PartialEq<str>
+    + PartialEq<&'a str>
+    + PartialEq<String>
+    + PartialEq<Cow<'a, str>>
 {
     /// Creates a new string buffer initialized with the empty string.
     ///
@@ -35,7 +39,9 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::new();
     /// ```
     #[inline]
-    fn new() -> Self where Self: Sized;
+    fn new() -> Self
+    where
+        Self: Sized;
 
     /// Creates a new string buffer with the given capacity. The string will be
     /// able to hold at least `capacity` bytes without reallocating. If
@@ -50,7 +56,9 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::with_capacity(10);
     /// ```
     #[inline]
-    fn with_capacity(capacity: usize) -> Self where Self: Sized;
+    fn with_capacity(capacity: usize) -> Self
+    where
+        Self: Sized;
 
     /// Returns the vector as a string buffer, if possible, taking care not to
     /// copy it.
@@ -75,7 +83,9 @@ pub trait StringExt<'a>:
     /// assert_eq!(s.into_bytes(), [240, 144, 128]);
     /// ```
     #[inline]
-    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error>  where Self: Sized;
+    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error>
+    where
+        Self: Sized;
 
     /// Converts a vector of bytes to a new UTF-8 string.
     /// Any invalid UTF-8 sequences are replaced with U+FFFD REPLACEMENT CHARACTER.
@@ -89,7 +99,10 @@ pub trait StringExt<'a>:
     /// let output = InlinableString::from_utf8_lossy(input);
     /// assert_eq!(output, "Hello \u{FFFD}World");
     /// ```
-    fn from_utf8_lossy(v: &'a [u8]) -> Cow<'a, str> where Self: Sized {
+    fn from_utf8_lossy(v: &'a [u8]) -> Cow<'a, str>
+    where
+        Self: Sized,
+    {
         String::from_utf8_lossy(v)
     }
 
@@ -111,7 +124,9 @@ pub trait StringExt<'a>:
     /// v[4] = 0xD800;
     /// assert!(InlinableString::from_utf16(v).is_err());
     /// ```
-    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error> where Self: Sized;
+    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error>
+    where
+        Self: Sized;
 
     /// Decode a UTF-16 encoded vector `v` into a string, replacing
     /// invalid data with the replacement character (U+FFFD).
@@ -130,7 +145,9 @@ pub trait StringExt<'a>:
     ///            InlinableString::from("𝄞mus\u{FFFD}ic\u{FFFD}"));
     /// ```
     #[inline]
-    fn from_utf16_lossy(v: &[u16]) -> Self where Self: Sized;
+    fn from_utf16_lossy(v: &[u16]) -> Self
+    where
+        Self: Sized;
 
     /// Creates a new `InlinableString` from a length, capacity, and pointer.
     ///
@@ -145,13 +162,17 @@ pub trait StringExt<'a>:
     ///
     /// * We assume that the `Vec` contains valid UTF-8.
     #[inline]
-    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self where Self: Sized;
+    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self
+    where
+        Self: Sized;
 
     /// Converts a vector of bytes to a new `InlinableString` without checking
     /// if it contains valid UTF-8. This is unsafe because it assumes that the
     /// UTF-8-ness of the vector has already been validated.
     #[inline]
-    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self where Self: Sized;
+    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self
+    where
+        Self: Sized;
 
     /// Returns the underlying byte buffer, encoded as UTF-8.
     ///
@@ -419,7 +440,9 @@ pub trait StringExt<'a>:
     /// assert!(!v.is_empty());
     /// ```
     #[inline]
-    fn is_empty(&self) -> bool { self.len() == 0 }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// Truncates the string, returning it to 0 length.
     ///
@@ -433,15 +456,21 @@ pub trait StringExt<'a>:
     /// assert!(s.is_empty());
     /// ```
     #[inline]
-    fn clear(&mut self) { self.truncate(0); }
+    fn clear(&mut self) {
+        self.truncate(0);
+    }
 }
 
 impl<'a> StringExt<'a> for String {
     #[inline]
-    fn new() -> Self { String::new() }
+    fn new() -> Self {
+        String::new()
+    }
 
     #[inline]
-    fn with_capacity(capacity: usize) -> Self { String::with_capacity(capacity) }
+    fn with_capacity(capacity: usize) -> Self {
+        String::with_capacity(capacity)
+    }
 
     #[inline]
     fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error> {
@@ -534,7 +563,9 @@ impl<'a> StringExt<'a> for String {
     }
 
     #[inline]
-    fn len(&self) -> usize { String::len(self) }
+    fn len(&self) -> usize {
+        String::len(self)
+    }
 }
 
 #[cfg(test)]
@@ -563,8 +594,7 @@ mod std_string_stringext_sanity_tests {
 
     #[test]
     fn test_from_utf16() {
-        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075,
-                      0x0073, 0x0069, 0x0063];
+        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0x0069, 0x0063];
         let s = <String as StringExt>::from_utf16(v);
         assert_eq!(s.unwrap(), "𝄞music");
     }

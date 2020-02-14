@@ -48,9 +48,9 @@ use std::str;
 ///
 /// Sometime in the future, when Rust's generics support specializing with
 /// compile-time static integers, this number should become configurable.
-#[cfg(target_pointer_width="64")]
+#[cfg(target_pointer_width = "64")]
 pub const INLINE_STRING_CAPACITY: usize = 30;
-#[cfg(target_pointer_width="32")]
+#[cfg(target_pointer_width = "32")]
 pub const INLINE_STRING_CAPACITY: usize = 14;
 
 /// A short UTF-8 string that uses inline storage and does no heap allocation.
@@ -70,9 +70,7 @@ pub struct NotEnoughSpaceError;
 impl AsRef<str> for InlineString {
     fn as_ref(&self) -> &str {
         self.assert_sanity();
-        unsafe {
-            mem::transmute(&self.bytes[0..self.len()])
-        }
+        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
     }
 }
 
@@ -87,9 +85,7 @@ impl AsMut<str> for InlineString {
     fn as_mut(&mut self) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe {
-            mem::transmute(&mut self.bytes[0..length])
-        }
+        unsafe { mem::transmute(&mut self.bytes[0..length]) }
     }
 }
 
@@ -183,9 +179,7 @@ impl ops::Index<ops::RangeFull> for InlineString {
     #[inline]
     fn index(&self, _index: ops::RangeFull) -> &str {
         self.assert_sanity();
-        unsafe {
-            mem::transmute(&self.bytes[0..self.len()])
-        }
+        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
     }
 }
 
@@ -218,9 +212,7 @@ impl ops::IndexMut<ops::RangeFull> for InlineString {
     fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe {
-            mem::transmute(&mut self.bytes[0..length])
-        }
+        unsafe { mem::transmute(&mut self.bytes[0..length]) }
     }
 }
 
@@ -230,9 +222,7 @@ impl ops::Deref for InlineString {
     #[inline]
     fn deref(&self) -> &str {
         self.assert_sanity();
-        unsafe {
-            mem::transmute(&self.bytes[0..self.len()])
-        }
+        unsafe { mem::transmute(&self.bytes[0..self.len()]) }
     }
 }
 
@@ -241,9 +231,7 @@ impl ops::DerefMut for InlineString {
     fn deref_mut(&mut self) -> &mut str {
         self.assert_sanity();
         let length = self.len();
-        unsafe {
-            mem::transmute(&mut self.bytes[0..length])
-        }
+        unsafe { mem::transmute(&mut self.bytes[0..length]) }
     }
 }
 
@@ -274,19 +262,26 @@ macro_rules! impl_eq {
     ($lhs:ty, $rhs: ty) => {
         impl<'a> PartialEq<$rhs> for $lhs {
             #[inline]
-            fn eq(&self, other: &$rhs) -> bool { PartialEq::eq(&self[..], &other[..]) }
+            fn eq(&self, other: &$rhs) -> bool {
+                PartialEq::eq(&self[..], &other[..])
+            }
             #[inline]
-            fn ne(&self, other: &$rhs) -> bool { PartialEq::ne(&self[..], &other[..]) }
+            fn ne(&self, other: &$rhs) -> bool {
+                PartialEq::ne(&self[..], &other[..])
+            }
         }
 
         impl<'a> PartialEq<$lhs> for $rhs {
             #[inline]
-            fn eq(&self, other: &$lhs) -> bool { PartialEq::eq(&self[..], &other[..]) }
+            fn eq(&self, other: &$lhs) -> bool {
+                PartialEq::eq(&self[..], &other[..])
+            }
             #[inline]
-            fn ne(&self, other: &$lhs) -> bool { PartialEq::ne(&self[..], &other[..]) }
+            fn ne(&self, other: &$lhs) -> bool {
+                PartialEq::ne(&self[..], &other[..])
+            }
         }
-
-    }
+    };
 }
 
 impl_eq! { InlineString, str }
@@ -297,10 +292,14 @@ impl InlineString {
     #[cfg_attr(feature = "nightly", allow(inline_always))]
     #[inline(always)]
     fn assert_sanity(&self) {
-        debug_assert!(self.length as usize <= INLINE_STRING_CAPACITY,
-                      "inlinable_string: internal error: length greater than capacity");
-        debug_assert!(str::from_utf8(&self.bytes[0..self.length as usize]).is_ok(),
-                      "inlinable_string: internal error: contents are not valid UTF-8!");
+        debug_assert!(
+            self.length as usize <= INLINE_STRING_CAPACITY,
+            "inlinable_string: internal error: length greater than capacity"
+        );
+        debug_assert!(
+            str::from_utf8(&self.bytes[0..self.length as usize]).is_ok(),
+            "inlinable_string: internal error: contents are not valid UTF-8!"
+        );
     }
 
     /// Creates a new string buffer initialized with the empty string.
@@ -364,9 +363,11 @@ impl InlineString {
         }
 
         unsafe {
-            ptr::copy_nonoverlapping(string.as_ptr(),
-                      self.bytes.as_mut_ptr().offset(self.length as isize),
-                      string_len);
+            ptr::copy_nonoverlapping(
+                string.as_ptr(),
+                self.bytes.as_mut_ptr().offset(self.length as isize),
+                string_len,
+            );
         }
         self.length = new_length as u8;
 
@@ -400,9 +401,10 @@ impl InlineString {
 
         {
             let mut slice = &mut self.bytes[self.length as usize..INLINE_STRING_CAPACITY];
-            write!(&mut slice, "{}", ch)
-                .expect("inlinable_string: internal error: should have enough space, we
-                         checked above");
+            write!(&mut slice, "{}", ch).expect(
+                "inlinable_string: internal error: should have enough space, we
+                         checked above",
+            );
         }
         self.length = new_length as u8;
 
@@ -446,9 +448,14 @@ impl InlineString {
     pub fn truncate(&mut self, new_len: usize) {
         self.assert_sanity();
 
-        assert!(self.char_indices().filter(|&(i, _)| i == new_len).next().is_some(),
-                "inlinable_string::InlineString::truncate: new_len is not a character
-                 boundary");
+        assert!(
+            self.char_indices()
+                .filter(|&(i, _)| i == new_len)
+                .next()
+                .is_some(),
+            "inlinable_string::InlineString::truncate: new_len is not a character
+                 boundary"
+        );
         assert!(new_len <= self.len());
 
         self.length = new_len as u8;
@@ -507,16 +514,20 @@ impl InlineString {
         assert!(idx <= self.len());
 
         match self.char_indices().filter(|&(i, _)| i == idx).next() {
-            None => panic!("inlinable_string::InlineString::remove: idx does not lie on a
-                            character boundary"),
+            None => panic!(
+                "inlinable_string::InlineString::remove: idx does not lie on a
+                            character boundary"
+            ),
             Some((_, ch)) => {
                 let char_len = ch.len_utf8();
                 let next = idx + char_len;
 
                 unsafe {
-                    ptr::copy(self.bytes.as_ptr().offset(next as isize),
-                              self.bytes.as_mut_ptr().offset(idx as isize),
-                              self.len() - next);
+                    ptr::copy(
+                        self.bytes.as_ptr().offset(next as isize),
+                        self.bytes.as_mut_ptr().offset(idx as isize),
+                        self.len() - next,
+                    );
                 }
                 self.length = self.length - char_len as u8;
 
@@ -555,13 +566,16 @@ impl InlineString {
         }
 
         unsafe {
-            ptr::copy(self.bytes.as_ptr().offset(idx as isize),
-                      self.bytes.as_mut_ptr().offset((idx + char_len) as isize),
-                      self.len() - idx);
+            ptr::copy(
+                self.bytes.as_ptr().offset(idx as isize),
+                self.bytes.as_mut_ptr().offset((idx + char_len) as isize),
+                self.len() - idx,
+            );
             let mut slice = &mut self.bytes[idx..idx + char_len];
-            write!(&mut slice, "{}", ch)
-                .expect("inlinable_string: internal error: we should have enough space, we
-                         checked above");
+            write!(&mut slice, "{}", ch).expect(
+                "inlinable_string: internal error: we should have enough space, we
+                         checked above",
+            );
         }
         self.length = new_length as u8;
 
@@ -707,6 +721,5 @@ mod benches {
     use test::Bencher;
 
     #[bench]
-    fn its_fast(b: &mut Bencher) {
-    }
+    fn its_fast(b: &mut Bencher) {}
 }

@@ -1,11 +1,12 @@
-use std::fmt;
+use serde::de::{Deserialize, Deserializer, Error as DeError, Visitor};
 use serde::{Serialize, Serializer};
-use serde::de::{Deserialize, Deserializer, Visitor, Error as DeError};
+use std::fmt;
 use InlinableString;
 
 impl Serialize for InlinableString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> 
-        where S: Serializer
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
     {
         serializer.serialize_str(self)
     }
@@ -13,7 +14,8 @@ impl Serialize for InlinableString {
 
 impl<'de> Deserialize<'de> for InlinableString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct InlinableStringVisitor;
 
@@ -25,13 +27,15 @@ impl<'de> Deserialize<'de> for InlinableString {
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                where E: DeError
+            where
+                E: DeError,
             {
                 Ok(v.into())
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-                where E: DeError
+            where
+                E: DeError,
             {
                 Ok(v.into())
             }
@@ -43,8 +47,8 @@ impl<'de> Deserialize<'de> for InlinableString {
 
 #[cfg(test)]
 mod tests {
+    use serde_test::{assert_tokens, Token};
     use InlinableString;
-    use serde_test::{Token, assert_tokens};
 
     #[test]
     fn test_ser_de() {
