@@ -146,7 +146,7 @@ pub trait StringExt<'a>:
 
     /// Creates a new `InlinableString` from a length, capacity, and pointer.
     ///
-    /// # Unsafety
+    /// # Safety
     ///
     /// This is _very_ unsafe because:
     ///
@@ -161,8 +161,12 @@ pub trait StringExt<'a>:
         Self: Sized;
 
     /// Converts a vector of bytes to a new `InlinableString` without checking
-    /// if it contains valid UTF-8. This is unsafe because it assumes that the
-    /// UTF-8-ness of the vector has already been validated.
+    /// if it contains valid UTF-8.
+    ///
+    /// # Safety
+    ///
+    /// This is unsafe because it assumes that the UTF-8-ness of the vector has
+    /// already been validated.
     unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self
     where
         Self: Sized;
@@ -375,6 +379,8 @@ pub trait StringExt<'a>:
     fn insert(&mut self, idx: usize, ch: char);
 
     /// Views the string buffer as a mutable sequence of bytes.
+    ///
+    /// # Safety
     ///
     /// This is unsafe because it does not check to ensure that the resulting
     /// string will be valid UTF-8.

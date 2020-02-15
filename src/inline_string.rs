@@ -566,6 +566,8 @@ impl InlineString {
 
     /// Views the internal string buffer as a mutable sequence of bytes.
     ///
+    /// # Safety
+    ///
     /// This is unsafe because it does not check to ensure that the resulting
     /// string will be valid UTF-8.
     ///
