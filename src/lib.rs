@@ -79,12 +79,6 @@
 #![cfg_attr(feature = "nightly", deny(clippy))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
-#[cfg(feature = "serde")]
-extern crate serde;
-
-#[cfg(all(test, feature = "serde"))]
-extern crate serde_test;
-
 #[cfg(test)]
 #[cfg(feature = "nightly")]
 extern crate test;
@@ -120,7 +114,7 @@ pub enum InlinableString {
 }
 
 impl fmt::Debug for InlinableString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self as &str, f)
     }
 }
@@ -252,7 +246,7 @@ impl Default for InlinableString {
 }
 
 impl fmt::Display for InlinableString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             InlinableString::Heap(ref s) => s.fmt(f),
             InlinableString::Inline(ref s) => s.fmt(f),
@@ -669,7 +663,7 @@ mod tests {
 
     #[test]
     fn test_write() {
-        use fmt::Write;
+        use std::fmt::Write;
         let mut s = InlinableString::new();
         write!(&mut s, "small").expect("!write");
         assert_eq!(s, "small");
