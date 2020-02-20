@@ -65,20 +65,18 @@
 //! consider using the more restrictive
 //! [`InlineString`](./inline_string/struct.InlineString.html) type. If `member` is
 //! not always small, then it should probably be left as a `String`.
-//! 
+//!
 //! # Serialization
-//! 
+//!
 //! `InlinableString` implements [`serde`][serde-docs]'s `Serialize` and `Deserialize` traits.
 //! Add the `serde` feature to your `Cargo.toml` to enable serialization.
-//! 
+//!
 //! [serde-docs]: https://serde.rs
 
 #![forbid(missing_docs)]
-
 #![cfg_attr(feature = "nightly", feature(plugin))]
 #![cfg_attr(feature = "nightly", plugin(clippy))]
 #![cfg_attr(feature = "nightly", deny(clippy))]
-
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 #[cfg(feature = "serde")]
@@ -97,7 +95,7 @@ mod serde_impl;
 pub mod inline_string;
 pub mod string_ext;
 
-pub use inline_string::{INLINE_STRING_CAPACITY, InlineString};
+pub use inline_string::{InlineString, INLINE_STRING_CAPACITY};
 pub use string_ext::StringExt;
 
 use std::borrow::{Borrow, Cow};
@@ -107,7 +105,7 @@ use std::hash;
 use std::iter;
 use std::mem;
 use std::ops;
-use std::string::{FromUtf8Error, FromUtf16Error};
+use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// An owned, grow-able UTF-8 string that allocates short strings inline on the
 /// stack.
@@ -128,7 +126,7 @@ impl fmt::Debug for InlinableString {
 }
 
 impl iter::FromIterator<char> for InlinableString {
-    fn from_iter<I: IntoIterator<Item=char>>(iter: I) -> InlinableString {
+    fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> InlinableString {
         let mut buf = InlinableString::new();
         buf.extend(iter);
         buf
@@ -136,7 +134,7 @@ impl iter::FromIterator<char> for InlinableString {
 }
 
 impl<'a> iter::FromIterator<&'a str> for InlinableString {
-    fn from_iter<I: IntoIterator<Item=&'a str>>(iter: I) -> InlinableString {
+    fn from_iter<I: IntoIterator<Item = &'a str>>(iter: I) -> InlinableString {
         let mut buf = InlinableString::new();
         buf.extend(iter);
         buf
@@ -144,7 +142,7 @@ impl<'a> iter::FromIterator<&'a str> for InlinableString {
 }
 
 impl Extend<char> for InlinableString {
-    fn extend<I: IntoIterator<Item=char>>(&mut self, iterable: I) {
+    fn extend<I: IntoIterator<Item = char>>(&mut self, iterable: I) {
         let iterator = iterable.into_iter();
         let (lower_bound, _) = iterator.size_hint();
         self.reserve(lower_bound);
@@ -155,13 +153,13 @@ impl Extend<char> for InlinableString {
 }
 
 impl<'a> Extend<&'a char> for InlinableString {
-    fn extend<I: IntoIterator<Item=&'a char>>(&mut self, iter: I) {
+    fn extend<I: IntoIterator<Item = &'a char>>(&mut self, iter: I) {
         self.extend(iter.into_iter().cloned());
     }
 }
 
 impl<'a> Extend<&'a str> for InlinableString {
-    fn extend<I: IntoIterator<Item=&'a str>>(&mut self, iterable: I) {
+    fn extend<I: IntoIterator<Item = &'a str>>(&mut self, iterable: I) {
         let iterator = iterable.into_iter();
         let (lower_bound, _) = iterator.size_hint();
         self.reserve(lower_bound);
@@ -388,30 +386,24 @@ impl PartialEq<InlinableString> for InlinableString {
     fn eq(&self, rhs: &InlinableString) -> bool {
         PartialEq::eq(&self[..], &rhs[..])
     }
-
-    #[inline]
-    fn ne(&self, rhs: &InlinableString) -> bool {
-        PartialEq::ne(&self[..], &rhs[..])
-    }
 }
 
 macro_rules! impl_eq {
     ($lhs:ty, $rhs: ty) => {
         impl<'a> PartialEq<$rhs> for $lhs {
             #[inline]
-            fn eq(&self, other: &$rhs) -> bool { PartialEq::eq(&self[..], &other[..]) }
-            #[inline]
-            fn ne(&self, other: &$rhs) -> bool { PartialEq::ne(&self[..], &other[..]) }
+            fn eq(&self, other: &$rhs) -> bool {
+                PartialEq::eq(&self[..], &other[..])
+            }
         }
 
         impl<'a> PartialEq<$lhs> for $rhs {
             #[inline]
-            fn eq(&self, other: &$lhs) -> bool { PartialEq::eq(&self[..], &other[..]) }
-            #[inline]
-            fn ne(&self, other: &$lhs) -> bool { PartialEq::ne(&self[..], &other[..]) }
+            fn eq(&self, other: &$lhs) -> bool {
+                PartialEq::eq(&self[..], &other[..])
+            }
         }
-
-    }
+    };
 }
 
 impl_eq! { InlinableString, str }
@@ -479,11 +471,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 promoted.push_str(&*s);
                 promoted.push_str(string);
                 promoted
-            },
+            }
             InlinableString::Heap(ref mut s) => {
                 s.push_str(string);
                 return;
-            },
+            }
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -507,11 +499,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 let mut promoted = String::with_capacity(new_capacity);
                 promoted.push_str(&s);
                 promoted
-            },
+            }
             InlinableString::Heap(ref mut s) => {
                 s.reserve(additional);
                 return;
-            },
+            }
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -527,11 +519,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 let mut promoted = String::with_capacity(new_capacity);
                 promoted.push_str(&s);
                 promoted
-            },
+            }
             InlinableString::Heap(ref mut s) => {
                 s.reserve_exact(additional);
                 return;
-            },
+            }
         };
         mem::swap(self, &mut InlinableString::Heap(promoted));
     }
@@ -566,11 +558,11 @@ impl<'a> StringExt<'a> for InlinableString {
                 promoted.push_str(&*s);
                 promoted.push(ch);
                 promoted
-            },
+            }
             InlinableString::Heap(ref mut s) => {
                 s.push(ch);
                 return;
-            },
+            }
         };
 
         mem::swap(self, &mut InlinableString::Heap(promoted));
@@ -614,7 +606,7 @@ impl<'a> StringExt<'a> for InlinableString {
             InlinableString::Heap(ref mut s) => {
                 s.insert(idx, ch);
                 return;
-            },
+            }
             InlinableString::Inline(ref mut s) => {
                 if s.insert(idx, ch).is_ok() {
                     return;
@@ -625,7 +617,7 @@ impl<'a> StringExt<'a> for InlinableString {
                 promoted.push(ch);
                 promoted.push_str(&s[idx..]);
                 promoted
-            },
+            }
         };
 
         mem::swap(self, &mut InlinableString::Heap(promoted));
@@ -697,7 +689,10 @@ mod tests {
         }
         s.push('a');
 
-        assert_eq!(s, String::from_iter((0..INLINE_STRING_CAPACITY + 1).map(|_| 'a')));
+        assert_eq!(
+            s,
+            String::from_iter((0..INLINE_STRING_CAPACITY + 1).map(|_| 'a'))
+        );
     }
 
     #[test]
@@ -709,7 +704,10 @@ mod tests {
         }
         s.insert(0, 'a');
 
-        assert_eq!(s, String::from_iter((0..INLINE_STRING_CAPACITY + 1).map(|_| 'a')));
+        assert_eq!(
+            s,
+            String::from_iter((0..INLINE_STRING_CAPACITY + 1).map(|_| 'a'))
+        );
     }
 
     // Next, some general sanity tests.
@@ -734,8 +732,7 @@ mod tests {
 
     #[test]
     fn test_from_utf16() {
-        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075,
-                      0x0073, 0x0069, 0x0063];
+        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0x0069, 0x0063];
         let s = <InlinableString as StringExt>::from_utf16(v);
         assert_eq!(s.unwrap(), "𝄞music");
     }
@@ -805,7 +802,7 @@ mod tests {
         assert_eq!(Ord::cmp(&s1, &s2), Ordering::Greater);
         assert_eq!(Ord::cmp(&s1, &s1), Ordering::Equal);
     }
-    
+
     #[test]
     fn test_display() {
         let short = InlinableString::from("he");
@@ -813,13 +810,16 @@ mod tests {
         assert_eq!(format!("{}", short), "he".to_string());
         assert_eq!(format!("{}", long), "hello world".to_string());
     }
-    
+
     #[test]
     fn test_debug() {
         let short = InlinableString::from("he");
         let long = InlinableString::from("hello world hello world hello world");
         assert_eq!(format!("{:?}", short), "\"he\"");
-        assert_eq!(format!("{:?}", long), "\"hello world hello world hello world\"");
+        assert_eq!(
+            format!("{:?}", long),
+            "\"hello world hello world hello world\""
+        );
     }
 }
 
@@ -827,7 +827,7 @@ mod tests {
 #[cfg(feature = "nightly")]
 mod benches {
     use super::{InlinableString, StringExt};
-    use test::{Bencher, black_box};
+    use test::{black_box, Bencher};
 
     const SMALL_STR: &'static str = "foobar";
 
