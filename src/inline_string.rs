@@ -518,6 +518,30 @@ impl InlineString {
         }
     }
 
+    /// Inserts the given bytes at the given position of the string.
+    unsafe fn insert_bytes(&mut self, idx: usize, bytes: &[u8]) -> Result<(), NotEnoughSpaceError> {
+        let len = self.len();
+        let amt = bytes.len();
+
+        // This subtraction does not overflow because `INLINE_STRING_CAPACITY >= self.len()` holds.
+        if amt > INLINE_STRING_CAPACITY - len {
+            return Err(NotEnoughSpaceError);
+        }
+
+        // Shift the latter part.
+        ptr::copy(
+            self.bytes.as_ptr().add(idx),
+            self.bytes.as_mut_ptr().add(idx + amt),
+            len - idx,
+        );
+        // Copy the bytes into the buffer.
+        ptr::copy(bytes.as_ptr(), self.bytes.as_mut_ptr().add(idx), amt);
+        // `amt` is less than `u8::MAX` becuase `INLINE_STRING_CAPACITY < u8::MAX` holds.
+        self.length += amt as u8;
+
+        Ok(())
+    }
+
     /// Inserts a character into the string buffer at byte position `idx`.
     ///
     /// # Examples
@@ -539,26 +563,12 @@ impl InlineString {
         self.assert_sanity();
         assert!(idx <= self.len());
 
-        let char_len = ch.len_utf8();
-        let new_length = self.len() + char_len;
-
-        if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
-        }
+        let mut bits = [0; 4];
+        let bits = ch.encode_utf8(&mut bits).as_bytes();
 
         unsafe {
-            ptr::copy(
-                self.bytes.as_ptr().add(idx),
-                self.bytes.as_mut_ptr().add(idx + char_len),
-                self.len() - idx,
-            );
-            let mut slice = &mut self.bytes[idx..idx + char_len];
-            write!(&mut slice, "{}", ch).expect(
-                "inlinable_string: internal error: we should have enough space, we
-                         checked above",
-            );
+            self.insert_bytes(idx, bits)?;
         }
-        self.length = new_length as u8;
 
         self.assert_sanity();
         Ok(())
