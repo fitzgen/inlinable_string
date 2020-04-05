@@ -574,6 +574,30 @@ impl InlineString {
         Ok(())
     }
 
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::from("foo");
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    #[inline]
+    pub fn insert_str(&mut self, idx: usize, string: &str) -> Result<(), NotEnoughSpaceError> {
+        self.assert_sanity();
+        assert!(idx <= self.len());
+
+        unsafe {
+            self.insert_bytes(idx, string.as_bytes())?;
+        }
+
+        self.assert_sanity();
+        Ok(())
+    }
+
     /// Views the internal string buffer as a mutable sequence of bytes.
     ///
     /// # Safety
