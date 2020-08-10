@@ -623,6 +623,33 @@ where
         self.borrow_mut()
     }
 
+    /// Converts this `String` into a [`Box`]`<`[`str`]`>`.
+    ///
+    /// This will drop any excess capacity.
+    ///
+    /// [`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
+    /// [`str`]: https://doc.rust-lang.org/std/primitive.str.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let s = InlinableString::from("hello");
+    ///
+    /// let b = s.into_boxed_str();
+    /// ```
+    #[inline]
+    fn into_boxed_str(self) -> Box<str>
+    where
+        Self: Into<String>,
+    {
+        let s = self.into();
+        <String>::into_boxed_str(s)
+    }
+
     /// Splits the string into two at the given index.
     ///
     /// Returns a new buffer. `self` contains bytes `[0, at)`, and
