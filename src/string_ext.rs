@@ -37,9 +37,10 @@ pub trait StringExt<'a>:
     ///
     /// let s = InlinableString::new();
     /// ```
-    fn new() -> Self
-    where
-        Self: Sized;
+    #[inline]
+    fn new() -> Self {
+        Self::with_capacity(0)
+    }
 
     /// Creates a new string buffer with the given capacity. The string will be
     /// able to hold at least `capacity` bytes without reallocating. If
@@ -79,9 +80,10 @@ pub trait StringExt<'a>:
     /// let err = s.utf8_error();
     /// assert_eq!(s.into_bytes(), [240, 144, 128]);
     /// ```
-    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error>
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error> {
+        String::from_utf8(vec).map(from_string)
+    }
 
     /// Converts a vector of bytes to a new UTF-8 string.
     /// Any invalid UTF-8 sequences are replaced with U+FFFD REPLACEMENT CHARACTER.
@@ -95,10 +97,8 @@ pub trait StringExt<'a>:
     /// let output = InlinableString::from_utf8_lossy(input);
     /// assert_eq!(output, "Hello \u{FFFD}World");
     /// ```
-    fn from_utf8_lossy(v: &'a [u8]) -> Cow<'a, str>
-    where
-        Self: Sized,
-    {
+    #[inline]
+    fn from_utf8_lossy(v: &[u8]) -> Cow<str> {
         String::from_utf8_lossy(v)
     }
 
@@ -120,9 +120,10 @@ pub trait StringExt<'a>:
     /// v[4] = 0xD800;
     /// assert!(InlinableString::from_utf16(v).is_err());
     /// ```
-    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error>
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error> {
+        String::from_utf16(v).map(from_string)
+    }
 
     /// Decode a UTF-16 encoded vector `v` into a string, replacing
     /// invalid data with the replacement character (U+FFFD).
@@ -140,25 +141,30 @@ pub trait StringExt<'a>:
     /// assert_eq!(InlinableString::from_utf16_lossy(v),
     ///            InlinableString::from("𝄞mus\u{FFFD}ic\u{FFFD}"));
     /// ```
-    fn from_utf16_lossy(v: &[u16]) -> Self
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf16_lossy(v: &[u16]) -> Self {
+        from_string(String::from_utf16_lossy(v))
+    }
 
-    /// Creates a new `InlinableString` from a length, capacity, and pointer.
+    /// Creates a new string from a length, capacity, and pointer.
     ///
     /// # Safety
     ///
-    /// This is _very_ unsafe because:
+    /// This function is just a shortened call to two other unsafe functions,
+    /// therefore it inherits all unsafety of those:
     ///
-    /// * We call `String::from_raw_parts` to get a `Vec<u8>`. Therefore, this
-    ///   function inherits all of its unsafety, see [its
-    ///   documentation](https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html#method.from_raw_parts)
-    ///   for the invariants it expects, they also apply to this function.
+    /// * First, [`Vec::from_raw_parts`] is called onto arguments;
+    ///   see the method documentation for the invariants it expects.
     ///
-    /// * We assume that the `Vec` contains valid UTF-8.
-    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self
-    where
-        Self: Sized;
+    /// * Then [`StringExt::from_utf8_unchecked`] is called onto the given vector,
+    ///   thus the vector must hold valid UTF-8 encoded string.
+    ///
+    /// [`Vec::from_raw_parts`]: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts
+    /// [`StringExt::from_utf8_unchecked`]: #tymethod.from_utf8_unchecked
+    #[inline]
+    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self {
+        Self::from_utf8_unchecked(Vec::from_raw_parts(buf, length, capacity))
+    }
 
     /// Converts a vector of bytes to a new `InlinableString` without checking
     /// if it contains valid UTF-8.
@@ -167,9 +173,7 @@ pub trait StringExt<'a>:
     ///
     /// This is unsafe because it assumes that the UTF-8-ness of the vector has
     /// already been validated.
-    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self
-    where
-        Self: Sized;
+    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self;
 
     /// Returns the underlying byte buffer, encoded as UTF-8.
     ///
@@ -182,7 +186,13 @@ pub trait StringExt<'a>:
     /// let bytes = s.into_bytes();
     /// assert_eq!(bytes, [104, 101, 108, 108, 111]);
     /// ```
-    fn into_bytes(self) -> Vec<u8>;
+    #[inline]
+    fn into_bytes(self) -> Vec<u8>
+    where
+        Self: Into<String>,
+    {
+        Into::into(self).into_bytes()
+    }
 
     /// Pushes the given string onto this string buffer.
     ///
@@ -195,7 +205,11 @@ pub trait StringExt<'a>:
     /// s.push_str("bar");
     /// assert_eq!(s, "foobar");
     /// ```
-    fn push_str(&mut self, string: &str);
+    #[inline]
+    fn push_str(&mut self, string: &str) {
+        let len = self.len();
+        self.insert_str(len, string);
+    }
 
     /// Returns the number of bytes that this string buffer can hold without
     /// reallocating.
@@ -282,7 +296,11 @@ pub trait StringExt<'a>:
     /// s.push('3');
     /// assert_eq!(s, "abc123");
     /// ```
-    fn push(&mut self, ch: char);
+    #[inline]
+    fn push(&mut self, ch: char) {
+        let len = self.len();
+        self.insert(len, ch);
+    }
 
     /// Works with the underlying buffer as a byte slice.
     ///
@@ -294,14 +312,23 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::from("hello");
     /// assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
     /// ```
-    fn as_bytes(&self) -> &[u8];
+    #[inline]
+    fn as_bytes(&self) -> &[u8]
+    where
+        Self: Borrow<str>,
+    {
+        self.borrow().as_bytes()
+    }
 
     /// Shortens a string to the specified length.
     ///
     /// # Panics
     ///
-    /// Panics if `new_len` > current length, or if `new_len` is not a character
-    /// boundary.
+    /// Panics if `new_len` does not lie on a [`char`] boundary.
+    ///
+    /// For other possible panic conditions, read documentation of the given implementation.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
@@ -398,7 +425,13 @@ pub trait StringExt<'a>:
     /// }
     /// assert_eq!(s, "olleh");
     /// ```
-    unsafe fn as_mut_slice(&mut self) -> &mut [u8];
+    #[inline]
+    unsafe fn as_mut_slice(&mut self) -> &mut [u8]
+    where
+        Self: BorrowMut<str>,
+    {
+        self.borrow_mut().as_bytes_mut()
+    }
 
     /// Returns the number of bytes in this string.
     ///
@@ -444,6 +477,58 @@ pub trait StringExt<'a>:
     fn clear(&mut self) {
         self.truncate(0);
     }
+
+    /// Extracts a string slice containing the entire string buffer.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let s = InlinableString::from("foo");
+    ///
+    /// assert_eq!("foo", s.as_str());
+    /// ```
+    #[inline]
+    fn as_str(&self) -> &str
+    where
+        Self: Borrow<str>,
+    {
+        self.borrow()
+    }
+
+    /// Converts this extandable string into a mutable string slice.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("foobar");
+    /// let s_mut_str = s.as_mut_str();
+    ///
+    /// s_mut_str.make_ascii_uppercase();
+    ///
+    /// assert_eq!("FOOBAR", s_mut_str);
+    /// ```
+    #[inline]
+    fn as_mut_str(&mut self) -> &mut str
+    where
+        Self: BorrowMut<str>,
+    {
+        self.borrow_mut()
+    }
+
+/// Internal function to decrease the numbers of unsafe.
+#[inline]
+fn from_string<S: StringExt>(s: String) -> S {
+    // SAFETY:
+    // `s` is a well-formed string, turned into bytes.
+    unsafe { S::from_utf8_unchecked(<String>::into_bytes(s)) }
 }
 
 impl<'a> StringExt<'a> for String {
@@ -550,6 +635,255 @@ impl<'a> StringExt<'a> for String {
     #[inline]
     fn len(&self) -> usize {
         String::len(self)
+    }
+}
+
+#[cfg(test)]
+mod provided_methods_tests {
+
+    use super::StringExt;
+    use std::{
+        borrow::{Borrow, BorrowMut, Cow},
+        cmp::PartialEq,
+        fmt,
+        ops::{Deref, DerefMut},
+    };
+
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct ReqImpl(String);
+
+    impl From<ReqImpl> for String {
+        fn from(s: ReqImpl) -> Self {
+            s.0
+        }
+    }
+
+    impl From<&str> for ReqImpl {
+        fn from(s: &str) -> Self {
+            Self(String::from(s))
+        }
+    }
+    impl Deref for ReqImpl {
+        type Target = str;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+    impl DerefMut for ReqImpl {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+    impl fmt::Display for ReqImpl {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+    impl PartialEq<str> for ReqImpl {
+        fn eq(&self, other: &str) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<String> for ReqImpl {
+        fn eq(&self, other: &String) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<&str> for ReqImpl {
+        fn eq(&self, other: &&str) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<Cow<'_, str>> for ReqImpl {
+        fn eq(&self, other: &Cow<str>) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl Borrow<str> for ReqImpl {
+        fn borrow(&self) -> &str {
+            &self.0
+        }
+    }
+    impl BorrowMut<str> for ReqImpl {
+        fn borrow_mut(&mut self) -> &mut str {
+            &mut self.0
+        }
+    }
+
+    impl StringExt for ReqImpl {
+        fn with_capacity(capacity: usize) -> Self {
+            Self(String::with_capacity(capacity))
+        }
+        unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self {
+            Self(String::from_utf8_unchecked(bytes))
+        }
+        fn capacity(&self) -> usize {
+            self.0.capacity()
+        }
+        fn reserve(&mut self, additional: usize) {
+            self.0.reserve(additional)
+        }
+        fn reserve_exact(&mut self, additional: usize) {
+            self.0.reserve_exact(additional)
+        }
+        fn shrink_to_fit(&mut self) {
+            self.0.shrink_to_fit()
+        }
+        fn truncate(&mut self, new_len: usize) {
+            self.0.truncate(new_len)
+        }
+        fn pop(&mut self) -> Option<char> {
+            self.0.pop()
+        }
+        fn remove(&mut self, idx: usize) -> char {
+            self.0.remove(idx)
+        }
+        fn insert(&mut self, idx: usize, ch: char) {
+            self.0.insert(idx, ch)
+        }
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+    }
+
+    #[test]
+    fn test_as_bytes() {
+        let s = ReqImpl::from("hello");
+        assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
+    }
+
+    #[test]
+    fn test_as_mut_slice() {
+        let mut s = ReqImpl::from("hello");
+        unsafe {
+            let slice = s.as_mut_slice();
+            assert!(slice == &[104, 101, 108, 108, 111]);
+            slice.reverse();
+        }
+        assert_eq!(s, "olleh");
+    }
+
+    #[test]
+    fn test_as_mut_str() {
+        let mut s = ReqImpl::from("foobar");
+        let s_mut_str = s.as_mut_str();
+
+        s_mut_str.make_ascii_uppercase();
+
+        assert_eq!("FOOBAR", s_mut_str);
+    }
+
+    #[test]
+    fn test_as_str() {
+        let s = ReqImpl::from("foo");
+
+        assert_eq!("foo", s.as_str());
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut s = ReqImpl::from("foo");
+        s.clear();
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn test_from_raw_parts() {
+        use std::mem;
+
+        unsafe {
+            let s = ReqImpl::from("hello");
+
+            let mut s = mem::ManuallyDrop::new(s);
+
+            let ptr = s.0.as_mut_ptr();
+            let len = s.len();
+            let capacity = s.capacity();
+
+            let s = ReqImpl::from_raw_parts(ptr, len, capacity);
+
+            assert_eq!(s, "hello");
+        }
+    }
+
+    #[test]
+    fn test_from_utf16() {
+        // 𝄞music
+        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0x0069, 0x0063];
+        assert_eq!(ReqImpl::from_utf16(v).unwrap(), ReqImpl::from("𝄞music"));
+
+        // 𝄞mu<invalid>ic
+        v[4] = 0xD800;
+        assert!(ReqImpl::from_utf16(v).is_err());
+    }
+
+    #[test]
+    fn test_from_utf16_lossy() {
+        // 𝄞mus<invalid>ic<invalid>
+        let v = &[
+            0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0xDD1E, 0x0069, 0x0063, 0xD834,
+        ];
+
+        assert_eq!(
+            ReqImpl::from_utf16_lossy(v),
+            ReqImpl::from("𝄞mus\u{FFFD}ic\u{FFFD}")
+        );
+    }
+
+    #[test]
+    fn test_from_utf8() {
+        let hello_vec = vec![104, 101, 108, 108, 111];
+        let s = ReqImpl::from_utf8(hello_vec).unwrap();
+        assert_eq!(s, "hello");
+
+        let invalid_vec = vec![240, 144, 128];
+        let s = ReqImpl::from_utf8(invalid_vec).err().unwrap();
+        let _err = s.utf8_error();
+        assert_eq!(s.into_bytes(), [240, 144, 128]);
+    }
+
+    #[test]
+    fn test_from_utf8_lossy() {
+        let input = b"Hello \xF0\x90\x80World";
+        let output = ReqImpl::from_utf8_lossy(input);
+        assert_eq!(output, "Hello \u{FFFD}World");
+    }
+
+    #[test]
+    fn test_into_bytes() {
+        let s = ReqImpl::from("hello");
+        let bytes = s.into_bytes();
+        assert_eq!(bytes, [104, 101, 108, 108, 111]);
+    }
+
+    #[test]
+    fn test_is_empty() {
+        let mut v = ReqImpl::new();
+        assert!(v.is_empty());
+        v.push('a');
+        assert!(!v.is_empty());
+    }
+
+    #[test]
+    fn test_new() {
+        let s = ReqImpl::new();
+        assert_eq!(ReqImpl::with_capacity(0), s);
+    }
+
+    #[test]
+    fn test_push() {
+        let mut s = ReqImpl::from("abc");
+        s.push('1');
+        s.push('2');
+        s.push('3');
+        assert_eq!(s, "abc123");
+    }
+
+    #[test]
+    fn test_push_str() {
+        let mut s = ReqImpl::from("foo");
+        s.push_str("bar");
+        assert_eq!(s, "foobar");
     }
 }
 
