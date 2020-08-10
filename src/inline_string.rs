@@ -416,8 +416,9 @@ impl InlineString {
     ///
     /// # Panics
     ///
-    /// Panics if `new_len` > current length, or if `new_len` is not a character
-    /// boundary.
+    /// Panics if `new_len` does not lie on a [`char`] boundary.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
@@ -432,15 +433,11 @@ impl InlineString {
     pub fn truncate(&mut self, new_len: usize) {
         self.assert_sanity();
 
-        assert!(
-            self.char_indices().any(|(i, _)| i == new_len),
-            "inlinable_string::InlineString::truncate: new_len is not a character
-                 boundary"
-        );
-        assert!(new_len <= self.len());
+        if new_len < self.len() {
+            assert!(self[..].is_char_boundary(new_len));
 
-        self.length = new_len as u8;
-        self.assert_sanity();
+            self.length = new_len as u8;
+        }
     }
 
     /// Removes the last character from the string buffer and returns it.
@@ -476,8 +473,10 @@ impl InlineString {
     ///
     /// # Panics
     ///
-    /// If `idx` does not lie on a character boundary, or if it is out of
-    /// bounds, then this function will panic.
+    /// Panics if `idx` is larger than or equal to the `String`'s length,
+    /// or if it does not lie on a [`char`] boundary.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
@@ -492,29 +491,16 @@ impl InlineString {
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
         self.assert_sanity();
-        assert!(idx <= self.len());
 
-        match self.char_indices().find(|&(i, _)| i == idx) {
-            None => panic!(
-                "inlinable_string::InlineString::remove: idx does not lie on a
-                            character boundary"
-            ),
-            Some((_, ch)) => {
-                let char_len = ch.len_utf8();
-                let next = idx + char_len;
+        let ch = match self[idx..].chars().next() {
+            Some(ch) => ch,
+            None => panic!("cannot remove a char from the end of a string"),
+        };
 
-                unsafe {
-                    ptr::copy(
-                        self.bytes.as_ptr().add(next),
-                        self.bytes.as_mut_ptr().add(idx),
-                        self.len() - next,
-                    );
-                }
-                self.length -= char_len as u8;
+        self.bytes.copy_within(idx + ch.len_utf8().., idx);
 
-                self.assert_sanity();
-                ch
-            }
+        ch
+    }
         }
     }
 
