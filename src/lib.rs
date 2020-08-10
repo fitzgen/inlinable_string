@@ -693,6 +693,17 @@ impl StringExt for InlinableString {
             },
         }
     }
+
+    #[inline]
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        match self {
+            Self::Inline(s) => s.retain(f),
+            Self::Heap(s) => s.retain(f),
+        }
+    }
 }
 
 #[cfg(test)]

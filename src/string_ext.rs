@@ -678,6 +678,63 @@ where
     #[must_use = "use `.truncate()` if you don't need the other half"]
     fn split_off(&mut self, at: usize) -> Self;
 
+    /// Retains only the characters specified by the predicate.
+    ///
+    /// In other words, remove all characters `c` such that `f(c)` returns `false`.
+    /// This method operates in place, visiting each character exactly once in the
+    /// original order, and preserves the order of the retained characters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("f_o_ob_ar");
+    ///
+    /// s.retain(|c| c != '_');
+    ///
+    /// assert_eq!(s, "foobar");
+    /// ```
+    ///
+    /// The exact order may be useful for tracking external state, like an index.
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("abcde");
+    /// let keep = [false, true, true, false, true];
+    /// let mut i = 0;
+    /// s.retain(|_| (keep[i], i += 1).0);
+    /// assert_eq!(s, "bce");
+    /// ```
+    #[inline]
+    fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        /// Insanely ineffective implementation,
+        /// yet it is done "in-place" if you don't count
+        /// a lot of stack space.
+        #[inline]
+        fn recursive_retain<SE, F>(self_: &mut SE, f: &mut F)
+        where
+            F: FnMut(char) -> bool,
+            SE: StringExt,
+        {
+            match self_.pop() {
+                Some(ch) => {
+                    recursive_retain(self_, f);
+                    if f(ch) {
+                        self_.push(ch);
+                    }
+                }
+                None => (),
+            }
+        }
+
+        recursive_retain(self, &mut f);
+    }
+
 /// Internal function to decrease the numbers of unsafe.
 #[inline]
 fn from_string<S: StringExt>(s: String) -> S {
@@ -808,6 +865,14 @@ impl StringExt for String {
     #[inline]
     fn split_off(&mut self, at: usize) -> Self {
         <String>::split_off(self, at)
+    }
+
+    #[inline]
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        <String>::retain(self, f)
     }
 }
 
@@ -1083,6 +1148,21 @@ mod provided_methods_tests {
         s.remove_range(..);
         assert_eq!(s, "");
     }
+
+    #[test]
+    fn test_retain() {
+        let mut s = ReqImpl::from("f_o_ob_ar");
+
+        s.retain(|c| c != '_');
+
+        assert_eq!(s, "foobar");
+
+        let mut s = ReqImpl::from("abcde");
+        let keep = [false, true, true, false, true];
+        let mut i = 0;
+        s.retain(|_| (keep[i], i += 1).0);
+        assert_eq!(s, "bce");
+    }
 }
 
 #[cfg(test)]
@@ -1208,5 +1288,12 @@ mod std_string_stringext_sanity_tests {
         let right_part = StringExt::split_off(&mut s, 3);
         assert_eq!(s, "foo");
         assert_eq!(right_part, "bar");
+    }
+
+    #[test]
+    fn test_retain() {
+        let mut s = String::from("--f-oo-b-a-r---");
+        StringExt::retain(&mut s, |ch| ch != '-');
+        assert_eq!(s, "foobar");
     }
 }
