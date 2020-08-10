@@ -563,7 +563,62 @@ impl InlineString {
 
         ch
     }
-        }
+
+    /// Removes the specified range from the string buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("α is not β!").unwrap();
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Remove the range up until the β from the string
+    /// s.remove_range(..beta_offset);
+    ///
+    /// assert_eq!(s, "β!");
+    ///
+    /// // A full range clears the string
+    /// s.remove_range(..);
+    /// assert_eq!(s, "");
+    /// ```
+    #[inline]
+    pub fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+
+        // Checking bounds.
+        let s: &str = &self;
+        assert!(s.is_char_boundary(end) && start <= end && s.is_char_boundary(start));
+
+        // Start and end are checked, remove everything inside that range.
+        self.bytes.copy_within(end.., start);
+        self.length -= (end - start) as u8;
     }
 
     /// Inserts a character into the string buffer at byte position `idx`.

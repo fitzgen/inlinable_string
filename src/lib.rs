@@ -607,6 +607,17 @@ impl StringExt for InlinableString {
     }
 
     #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        match self {
+            InlinableString::Heap(s) => s.remove_range(range),
+            InlinableString::Inline(s) => s.remove_range(range),
+        }
+    }
+
+    #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         let promoted = match *self {
             InlinableString::Heap(ref mut s) => {

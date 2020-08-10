@@ -383,6 +383,68 @@ where
     /// ```
     fn remove(&mut self, idx: usize) -> char;
 
+    /// Removes the specified range from the string buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("α is alpha, β is beta");
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Remove the range up until the β from the string
+    /// s.remove_range(..beta_offset);
+    ///
+    /// assert_eq!(s, "β is beta");
+    ///
+    /// // A full range clears the string
+    /// s.remove_range(..);
+    /// assert_eq!(s, "");
+    /// ```
+    #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+
+        // Checking bounds.
+        assert!(start <= end);
+
+        let diff = end - start;
+
+        let mut sum = 0;
+        while sum < diff {
+            sum += self.remove(start).len_utf8();
+        }
+
+        // Sanity check: number of deleted bytes must be equal
+        // to the range length.
+        assert_eq!(diff, sum);
+    }
+
     /// Inserts a character into the string buffer at byte position `idx`.
     ///
     /// # Warning
@@ -661,6 +723,14 @@ impl StringExt for String {
     }
 
     #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        String::drain(self, range);
+    }
+
+    #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         String::insert(self, idx, ch)
     }
@@ -935,6 +1005,21 @@ mod provided_methods_tests {
         s.push_str("bar");
         assert_eq!(s, "foobar");
     }
+
+    #[test]
+    fn test_remove_range() {
+        let mut s = ReqImpl::from("α is alpha, β is beta");
+        let beta_offset = s.find('β').unwrap_or(s.len());
+
+        // Remove the range up until the β from the string
+        s.remove_range(..beta_offset);
+
+        assert_eq!(s, "β is beta");
+
+        // A full range clears the string
+        s.remove_range(..);
+        assert_eq!(s, "");
+    }
 }
 
 #[cfg(test)]
@@ -1045,5 +1130,12 @@ mod std_string_stringext_sanity_tests {
         let mut s = String::from("foo");
         StringExt::insert_str(&mut s, 1, "bar");
         assert_eq!(s, "fbaroo");
+    }
+
+    #[test]
+    fn test_remove_range() {
+        let mut s = String::from("foobar");
+        StringExt::remove_range(&mut s, 1..3);
+        assert_eq!(s, "fbar");
     }
 }
