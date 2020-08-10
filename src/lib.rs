@@ -98,13 +98,14 @@ pub mod string_ext;
 pub use inline_string::{InlineString, INLINE_STRING_CAPACITY};
 pub use string_ext::StringExt;
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::{Borrow, BorrowMut, Cow};
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::fmt;
 use std::hash;
 use std::iter;
 use std::mem;
-use std::ops;
+use std::ops::{self, RangeBounds};
 use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// An owned, grow-able UTF-8 string that allocates short strings inline on the

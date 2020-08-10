@@ -35,10 +35,12 @@
 //! ```
 
 use std::borrow;
-use std::fmt;
+use std::convert::{Infallible, TryFrom};
+use std::fmt::{self, Display};
 use std::hash;
 use std::io::Write;
-use std::ops;
+use std::mem;
+use std::ops::{self, RangeBounds};
 use std::ptr;
 use std::str;
 
@@ -97,25 +99,34 @@ impl AsMut<[u8]> for InlineString {
     }
 }
 
-/// Create a `InlineString` from the given `&str`.
-///
-/// # Panics
-///
-/// If the given string's size is greater than `INLINE_STRING_CAPACITY`, this
-/// method panics.
-impl<'a> From<&'a str> for InlineString {
-    fn from(string: &'a str) -> InlineString {
+/// An error type for `InlineString` TryFrom impl.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct NotEnoughCapacityError;
+impl Display for NotEnoughCapacityError {
+    #[inline]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        "the length of the string is bigger than maximum capacity of `InlineString`".fmt(fmt)
+    }
+}
+impl From<Infallible> for NotEnoughCapacityError {
+    #[inline]
+    fn from(x: Infallible) -> NotEnoughCapacityError {
+        match x {}
+    }
+}
+
+impl TryFrom<&str> for InlineString {
+    type Error = NotEnoughCapacityError;
+
+    fn try_from(string: &str) -> Result<Self, NotEnoughCapacityError> {
         let string_len = string.len();
-        assert!(string_len <= INLINE_STRING_CAPACITY);
-
-        let mut ss = InlineString::new();
-        unsafe {
-            ptr::copy_nonoverlapping(string.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
+        if string_len <= INLINE_STRING_CAPACITY {
+            // SAFETY:
+            // `string_len` is not bigger than capacity.
+            unsafe { Ok(Self::from_str_unchecked(string)) }
+        } else {
+            Err(NotEnoughCapacityError)
         }
-        ss.length = string_len as u8;
-
-        ss.assert_sanity();
-        ss
     }
 }
 
@@ -358,9 +369,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let s = InlineString::from("hello");
+    /// let s = InlineString::try_from("hello").unwrap();
     /// let bytes = s.into_bytes();
     /// assert_eq!(&bytes[0..5], [104, 101, 108, 108, 111]);
     /// ```
@@ -378,9 +390,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.push_str("bar");
     /// assert_eq!(s, "foobar");
     /// ```
@@ -413,9 +426,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("abc");
+    /// let mut s = InlineString::try_from("abc").unwrap();
     /// s.push('1');
     /// s.push('2');
     /// s.push('3');
@@ -450,9 +464,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let s = InlineString::from("hello");
+    /// let s = InlineString::try_from("hello").unwrap();
     /// assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
     /// ```
     #[inline]
@@ -472,9 +487,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("hello");
+    /// let mut s = InlineString::try_from("hello").unwrap();
     /// s.truncate(2);
     /// assert_eq!(s, "he");
     /// ```
@@ -495,9 +511,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// assert_eq!(s.pop(), Some('o'));
     /// assert_eq!(s.pop(), Some('o'));
     /// assert_eq!(s.pop(), Some('f'));
@@ -530,9 +547,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// assert_eq!(s.remove(0), 'f');
     /// assert_eq!(s.remove(1), 'o');
     /// assert_eq!(s.remove(0), 'o');
@@ -558,9 +576,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.insert(2, 'f');
     /// assert!(s == "fofo");
     /// ```
@@ -609,9 +628,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("hello");
+    /// let mut s = InlineString::try_from("hello").unwrap();
     /// unsafe {
     ///     let slice = s.as_mut_slice();
     ///     assert!(slice == &[104, 101, 108, 108, 111]);
@@ -630,9 +650,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let a = InlineString::from("foo");
+    /// let a = InlineString::try_from("foo").unwrap();
     /// assert_eq!(a.len(), 3);
     /// ```
     #[inline]
@@ -664,9 +685,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.clear();
     /// assert!(s.is_empty());
     /// ```
