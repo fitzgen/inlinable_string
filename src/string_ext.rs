@@ -11,22 +11,25 @@
 //!
 //! See the [crate level documentation](./../index.html) for more.
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::{Borrow, BorrowMut, Cow};
 use std::cmp::PartialEq;
 use std::fmt::Display;
+use std::ops::RangeBounds;
+use std::str;
 use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// A trait that exists to abstract string operations over any number of
 /// concrete string type implementations.
 ///
 /// See the [crate level documentation](./../index.html) for more.
-pub trait StringExt<'a>:
-    Borrow<str>
-    + Display
-    + PartialEq<str>
-    + PartialEq<&'a str>
-    + PartialEq<String>
-    + PartialEq<Cow<'a, str>>
+pub trait StringExt
+where
+    for<'a> Self: Sized
+        + Display
+        + PartialEq<str>
+        + PartialEq<String>
+        + PartialEq<&'a str>
+        + PartialEq<Cow<'a, str>>,
 {
     /// Creates a new string buffer initialized with the empty string.
     ///
