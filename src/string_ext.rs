@@ -927,6 +927,29 @@ impl StringExt for String {
     }
 }
 
+/// Implementation of some traits from stdlib for `String` type.
+/// This is 1.41.0+ code; before 1.41 orphan rules were too strict.
+mod string_impls {
+    use crate::{InlinableString, InlineString};
+
+    impl From<InlineString> for String {
+        #[inline]
+        fn from(s: InlineString) -> String {
+            String::from(&*s)
+        }
+    }
+
+    impl From<InlinableString> for String {
+        #[inline]
+        fn from(s: InlinableString) -> String {
+            match s {
+                InlinableString::Heap(s) => s,
+                InlinableString::Inline(s) => String::from(s),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod provided_methods_tests {
 
