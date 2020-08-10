@@ -205,6 +205,12 @@ impl Borrow<str> for InlinableString {
     }
 }
 
+impl BorrowMut<str> for InlinableString {
+    fn borrow_mut(&mut self) -> &mut str {
+        &mut *self
+    }
+}
+
 impl AsRef<str> for InlinableString {
     fn as_ref(&self) -> &str {
         match *self {
