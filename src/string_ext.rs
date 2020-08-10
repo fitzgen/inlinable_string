@@ -623,6 +623,34 @@ where
         self.borrow_mut()
     }
 
+    /// Splits the string into two at the given index.
+    ///
+    /// Returns a new buffer. `self` contains bytes `[0, at)`, and
+    /// the returned buffer contains bytes `[at, len)`. `at` must be on the
+    /// boundary of a UTF-8 code point.
+    ///
+    /// Note that the capacity of `self` does not change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at` is not on a `UTF-8` code point boundary, or if it is beyond the last
+    /// code point of the string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn main() {
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut hello = InlinableString::from("Hello, World!");
+    /// let world = hello.split_off(7);
+    /// assert_eq!(hello, "Hello, ");
+    /// assert_eq!(world, "World!");
+    /// # }
+    /// ```
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    fn split_off(&mut self, at: usize) -> Self;
+
 /// Internal function to decrease the numbers of unsafe.
 #[inline]
 fn from_string<S: StringExt>(s: String) -> S {
@@ -749,6 +777,11 @@ impl StringExt for String {
     fn len(&self) -> usize {
         String::len(self)
     }
+
+    #[inline]
+    fn split_off(&mut self, at: usize) -> Self {
+        <String>::split_off(self, at)
+    }
 }
 
 #[cfg(test)]
@@ -856,6 +889,9 @@ mod provided_methods_tests {
         }
         fn len(&self) -> usize {
             self.0.len()
+        }
+        fn split_off(&mut self, at: usize) -> Self {
+            Self(self.0.split_off(at))
         }
     }
 
@@ -1137,5 +1173,13 @@ mod std_string_stringext_sanity_tests {
         let mut s = String::from("foobar");
         StringExt::remove_range(&mut s, 1..3);
         assert_eq!(s, "fbar");
+    }
+
+    #[test]
+    fn test_split_off() {
+        let mut s = String::from("foobar");
+        let right_part = StringExt::split_off(&mut s, 3);
+        assert_eq!(s, "foo");
+        assert_eq!(right_part, "bar");
     }
 }

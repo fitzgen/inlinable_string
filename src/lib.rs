@@ -678,6 +678,21 @@ impl StringExt for InlinableString {
             InlinableString::Inline(ref s) => s.len(),
         }
     }
+
+    #[inline]
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    fn split_off(&mut self, at: usize) -> Self {
+        match self {
+            InlinableString::Inline(s) => Self::Inline(s.split_off(at)),
+            InlinableString::Heap(s) => match InlineString::try_from(&s[at..]) {
+                Ok(inlined) => {
+                    s.truncate(at);
+                    Self::Inline(inlined)
+                }
+                Err(_) => Self::Heap(s.split_off(at)),
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -771,6 +786,24 @@ mod tests {
     }
 
     // Next, some general sanity tests.
+
+    #[test]
+    fn test_split_off() {
+        // This test checks `Heap -> (Heap, Inline)` case of the function;
+        // `Heap -> (Heap, Heap)` is tested by `String` itself,
+        // `Inline -> (Inline, Inline)` is tested by `InlineString`.
+
+        let mut inlinable: InlinableString = LONG_STR.into();
+        let len = LONG_STR.len();
+        assert!(len > INLINE_STRING_CAPACITY as usize);
+
+        let at = len - 7;
+        let right_part = inlinable.split_off(at);
+        assert_eq!(&LONG_STR[..at], inlinable);
+        assert_eq!(&LONG_STR[at..], right_part);
+        assert!(matches!(inlinable, InlinableString::Heap(_)));
+        assert!(matches!(right_part, InlinableString::Inline(_)));
+    }
 
     #[test]
     fn test_new() {
