@@ -47,10 +47,10 @@ use std::str;
 ///
 /// Sometime in the future, when Rust's generics support specializing with
 /// compile-time static integers, this number should become configurable.
-#[cfg(target_pointer_width = "64")]
-pub const INLINE_STRING_CAPACITY: usize = 30;
-#[cfg(target_pointer_width = "32")]
-pub const INLINE_STRING_CAPACITY: usize = 14;
+pub const INLINE_STRING_CAPACITY: usize = {
+    use mem::size_of;
+    size_of::<String>() + size_of::<usize>() - 2
+};
 
 /// A short UTF-8 string that uses inline storage and does no heap allocation.
 ///
