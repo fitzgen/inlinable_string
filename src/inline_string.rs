@@ -286,6 +286,55 @@ impl InlineString {
         );
     }
 
+    /// Turn a string slice into `InlineString` without checks.
+    ///
+    /// # Safety:
+    ///
+    /// It is instant UB if the length of `s` is bigger than `INLINE_STRING_CAPACITY`.
+    unsafe fn from_str_unchecked(s: &str) -> Self {
+        let string_len = s.len();
+        debug_assert!(
+            string_len <= INLINE_STRING_CAPACITY as usize,
+            "inlinable_string: internal error: length greater than capacity"
+        );
+
+        let mut ss = InlineString::new();
+        unsafe {
+            ptr::copy_nonoverlapping(s.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
+        }
+        ss.length = string_len as u8;
+
+        ss.assert_sanity();
+
+        ss
+    }
+
+    /// Returns a mutable reference to the inner buffer.
+    ///
+    /// Safety
+    ///
+    /// The same as [`str::as_bytes_mut()`].
+    ///
+    ///[`str::as_bytes_mut()`]: https://doc.rust-lang.org/std/primitive.str.html#method.as_bytes_mut
+    #[inline]
+    pub(crate) unsafe fn as_bytes_mut(&mut self) -> &mut [u8; INLINE_STRING_CAPACITY] {
+        &mut self.bytes
+    }
+
+    /// Insanely unsafe function to set length.
+    ///
+    /// Safety
+    ///
+    /// It's UB if `new_len`
+    ///
+    /// * is bigger than `INLINE_STRING_CAPACITY`;
+    /// * doesn't lie at the start and/or end of a UTF-8 code point sequence;
+    /// * grabs some uninitialized memory.
+    #[inline]
+    pub(crate) unsafe fn set_len(&mut self, new_len: usize) {
+        self.length = new_len as u8
+    }
+
     /// Creates a new string buffer initialized with the empty string.
     ///
     /// # Examples
