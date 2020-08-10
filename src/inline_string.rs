@@ -63,11 +63,6 @@ pub struct InlineString {
     bytes: [u8; INLINE_STRING_CAPACITY],
 }
 
-/// The error returned when there is not enough space in a `InlineString` for the
-/// requested operation.
-#[derive(Debug, PartialEq)]
-pub struct NotEnoughSpaceError;
-
 impl AsRef<str> for InlineString {
     fn as_ref(&self) -> &str {
         self.assert_sanity();
@@ -99,33 +94,33 @@ impl AsMut<[u8]> for InlineString {
     }
 }
 
-/// An error type for `InlineString` TryFrom impl.
+/// An error type for `InlineString`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct NotEnoughCapacityError;
-impl Display for NotEnoughCapacityError {
+pub struct NotEnoughCapacity;
+impl Display for NotEnoughCapacity {
     #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        "the length of the string is bigger than maximum capacity of `InlineString`".fmt(fmt)
+        "the length of the result string is bigger than maximum capacity of `InlineString`".fmt(fmt)
     }
 }
-impl From<Infallible> for NotEnoughCapacityError {
+impl From<Infallible> for NotEnoughCapacity {
     #[inline]
-    fn from(x: Infallible) -> NotEnoughCapacityError {
+    fn from(x: Infallible) -> NotEnoughCapacity {
         match x {}
     }
 }
 
 impl TryFrom<&str> for InlineString {
-    type Error = NotEnoughCapacityError;
+    type Error = NotEnoughCapacity;
 
-    fn try_from(string: &str) -> Result<Self, NotEnoughCapacityError> {
+    fn try_from(string: &str) -> Result<Self, NotEnoughCapacity> {
         let string_len = string.len();
         if string_len <= INLINE_STRING_CAPACITY {
             // SAFETY:
             // `string_len` is not bigger than capacity.
             unsafe { Ok(Self::from_str_unchecked(string)) }
         } else {
-            Err(NotEnoughCapacityError)
+            Err(NotEnoughCapacity)
         }
     }
 }
@@ -398,14 +393,14 @@ impl InlineString {
     /// assert_eq!(s, "foobar");
     /// ```
     #[inline]
-    pub fn push_str(&mut self, string: &str) -> Result<(), NotEnoughSpaceError> {
+    pub fn push_str(&mut self, string: &str) -> Result<(), NotEnoughCapacity> {
         self.assert_sanity();
 
         let string_len = string.len();
         let new_length = self.len() + string_len;
 
         if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+            return Err(NotEnoughCapacity);
         }
 
         unsafe {
@@ -436,14 +431,14 @@ impl InlineString {
     /// assert_eq!(s, "abc123");
     /// ```
     #[inline]
-    pub fn push(&mut self, ch: char) -> Result<(), NotEnoughSpaceError> {
+    pub fn push(&mut self, ch: char) -> Result<(), NotEnoughCapacity> {
         self.assert_sanity();
 
         let char_len = ch.len_utf8();
         let new_length = self.len() + char_len;
 
         if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+            return Err(NotEnoughCapacity);
         }
 
         {
@@ -589,15 +584,16 @@ impl InlineString {
     /// If `idx` does not lie on a character boundary or is out of bounds, then
     /// this function will panic.
     #[inline]
-    pub fn insert(&mut self, idx: usize, ch: char) -> Result<(), NotEnoughSpaceError> {
-        self.assert_sanity();
-        assert!(idx <= self.len());
+    pub fn insert(&mut self, idx: usize, ch: char) -> Result<(), NotEnoughCapacity> {
+        let mut bits = [0; 4];
+        self.insert_str(idx, ch.encode_utf8(&mut bits))
+    }
 
         let char_len = ch.len_utf8();
         let new_length = self.len() + char_len;
 
-        if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+        if len_sum > INLINE_STRING_CAPACITY {
+            return Err(NotEnoughCapacity);
         }
 
         unsafe {
@@ -698,11 +694,126 @@ impl InlineString {
         self.length = 0;
         self.assert_sanity();
     }
+
+    /// Splits the string into two at the given index.
+    ///
+    /// Returns a new buffer. `self` contains bytes `[0, at)`, and
+    /// the returned buffer contains bytes `[at, len)`. `at` must be on the
+    /// boundary of a UTF-8 code point.
+    ///
+    /// Note that the capacity of `self` does not change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at` is not on a `UTF-8` code point boundary, or if it is beyond the last
+    /// code point of the string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn main() {
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut hello = InlineString::try_from("Hello, World!").unwrap();
+    /// let world = hello.split_off(7);
+    /// assert_eq!(hello, "Hello, ");
+    /// assert_eq!(world, "World!");
+    /// # }
+    /// ```
+    #[inline]
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    pub fn split_off(&mut self, at: usize) -> Self {
+        // String index does all bounds checks.
+        let s: &str = &self[at..];
+
+        // SAFETY:
+        // `s` is a part of `InlineString`, thus its length is never bigger
+        // than `INLINE_STRING_CAPACITY`.
+        let right_part = unsafe { Self::from_str_unchecked(s) };
+        self.length = at as u8;
+
+        right_part
+    }
+
+    /// Retains only the characters specified by the predicate.
+    ///
+    /// In other words, remove all characters `c` such that `f(c)` returns `false`.
+    /// This method operates in place, visiting each character exactly once in the
+    /// original order, and preserves the order of the retained characters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("f_o_ob_ar").unwrap();
+    ///
+    /// s.retain(|c| c != '_');
+    ///
+    /// assert_eq!(s, "foobar");
+    /// ```
+    ///
+    /// The exact order may be useful for tracking external state, like an index.
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("abcde").unwrap();
+    /// let keep = [false, true, true, false, true];
+    /// let mut i = 0;
+    /// s.retain(|_| (keep[i], i += 1).0);
+    /// assert_eq!(s, "bce");
+    /// ```
+    #[inline]
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        // Since `InlineString` is a little stack-allocated buffer,
+        // there's almost no difference whether it's retained in-place
+        // or not.
+
+        let mut buffer = Self::new();
+        let buf = &mut buffer.bytes;
+        let mut ptr = 0;
+        let mut copy_bytes = 0;
+
+        let s = &self[..];
+        s.char_indices().for_each(|(idx, ch)| {
+            if f(ch) {
+                copy_bytes += ch.len_utf8();
+            } else if copy_bytes > 0 {
+                let next_ptr = ptr + copy_bytes;
+                buf[ptr..next_ptr].copy_from_slice(&s.as_bytes()[idx - copy_bytes..idx]);
+
+                ptr = next_ptr;
+                copy_bytes = 0;
+            }
+        });
+
+        if copy_bytes > 0 {
+            // If the whole string is retained, do nothing.
+            if copy_bytes == s.len() {
+                return;
+            }
+
+            let next_ptr = ptr + copy_bytes;
+            buf[ptr..next_ptr].copy_from_slice(&s.as_bytes()[s.len() - copy_bytes..]);
+
+            ptr = next_ptr;
+        }
+
+        buffer.length = ptr as u8;
+        *self = buffer;
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{InlineString, NotEnoughSpaceError, INLINE_STRING_CAPACITY};
+    use super::{InlineString, NotEnoughCapacity, TryFrom, INLINE_STRING_CAPACITY};
 
     #[test]
     fn test_push_str() {
@@ -712,7 +823,7 @@ mod tests {
 
         let long_str = "this is a really long string that is much larger than
                         INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        assert_eq!(s.push_str(long_str), Err(NotEnoughSpaceError));
+        assert_eq!(s.push_str(long_str), Err(NotEnoughCapacity));
         assert_eq!(s, "small");
     }
 
@@ -724,7 +835,7 @@ mod tests {
             assert!(s.push('a').is_ok());
         }
 
-        assert_eq!(s.push('a'), Err(NotEnoughSpaceError));
+        assert_eq!(s.push('a'), Err(NotEnoughCapacity));
     }
 
     #[test]
@@ -735,7 +846,14 @@ mod tests {
             assert!(s.insert(0, 'a').is_ok());
         }
 
-        assert_eq!(s.insert(0, 'a'), Err(NotEnoughSpaceError));
+        assert_eq!(s.insert(0, 'a'), Err(NotEnoughCapacity));
+    }
+
+    #[test]
+    #[should_panic]
+    fn insert_panic() {
+        let mut s = InlineString::try_from("й").unwrap();
+        let _ = s.insert(1, 'q');
     }
 
     #[test]
