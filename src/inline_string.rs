@@ -589,28 +589,43 @@ impl InlineString {
         self.insert_str(idx, ch.encode_utf8(&mut bits))
     }
 
-        let char_len = ch.len_utf8();
-        let new_length = self.len() + char_len;
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("foo").unwrap();
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    #[inline]
+    pub fn insert_str(&mut self, idx: usize, string: &str) -> Result<(), NotEnoughCapacity> {
+        let len = self.len();
+        let amt = string.len();
+        let len_sum = len + amt;
 
         if len_sum > INLINE_STRING_CAPACITY {
             return Err(NotEnoughCapacity);
         }
 
+        // SAFETY:
+        // `idx` is a char boundary and <= `len`, thus it's also `<=` lengths' sum,
+        // lengths' sum is checked to be `<=` than `INLINE_STRING_CAPACITY`,
+        // and `string` is a well-formed `str`.
         unsafe {
+            assert!(self.is_char_boundary(idx));
             ptr::copy(
                 self.bytes.as_ptr().add(idx),
-                self.bytes.as_mut_ptr().add(idx + char_len),
-                self.len() - idx,
+                self.bytes.as_mut_ptr().add(idx + amt),
+                len - idx,
             );
-            let mut slice = &mut self.bytes[idx..idx + char_len];
-            write!(&mut slice, "{}", ch).expect(
-                "inlinable_string: internal error: we should have enough space, we
-                         checked above",
-            );
+            ptr::copy_nonoverlapping(string.as_ptr(), self.bytes.as_mut_ptr().add(idx), amt);
+            self.set_len(len_sum);
         }
-        self.length = new_length as u8;
 
-        self.assert_sanity();
         Ok(())
     }
 

@@ -404,7 +404,44 @@ where
     ///
     /// If `idx` does not lie on a character boundary or is out of bounds, then
     /// this function will panic.
-    fn insert(&mut self, idx: usize, ch: char);
+    #[inline]
+    fn insert(&mut self, idx: usize, ch: char) {
+        let mut bits = [0; 4];
+        self.insert_str(idx, ch.encode_utf8(&mut bits));
+    }
+
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Warning
+    ///
+    /// This is an O(n) operation as it requires copying every element in the
+    /// buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("foo");
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If `idx` does not lie on a character boundary or is out of bounds, then
+    /// this function will panic.
+    fn insert_str(&mut self, idx: usize, string: &str);
+    /* It looks like `insert_str` is better manually implemented,
+     * while provided `insert` is mostly okay.
+    {
+        let mut idx = idx;
+        string.chars().for_each(|ch| {
+            self.insert(idx, ch);
+            idx += ch.len_utf8();
+        });
+    }
+    */
 
     /// Views the string buffer as a mutable sequence of bytes.
     ///
@@ -626,6 +663,11 @@ impl StringExt for String {
     #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         String::insert(self, idx, ch)
+    }
+
+    #[inline]
+    fn insert_str(&mut self, idx: usize, string: &str) {
+        String::insert_str(self, idx, string)
     }
 
     #[inline]
@@ -851,6 +893,13 @@ mod provided_methods_tests {
     }
 
     #[test]
+    fn test_insert_str() {
+        let mut s = ReqImpl::from("foo");
+        s.insert_str(2, "bar");
+        assert!(s == "fobaro");
+    }
+
+    #[test]
     fn test_into_bytes() {
         let s = ReqImpl::from("hello");
         let bytes = s.into_bytes();
@@ -989,5 +1038,12 @@ mod std_string_stringext_sanity_tests {
         assert_eq!(StringExt::pop(&mut s), Some('o'));
         assert_eq!(StringExt::pop(&mut s), Some('f'));
         assert_eq!(StringExt::pop(&mut s), None);
+    }
+
+    #[test]
+    fn test_insert_str() {
+        let mut s = String::from("foo");
+        StringExt::insert_str(&mut s, 1, "bar");
+        assert_eq!(s, "fbaroo");
     }
 }
