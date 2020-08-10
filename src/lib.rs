@@ -704,6 +704,61 @@ impl StringExt for InlinableString {
             Self::Heap(s) => s.retain(f),
         }
     }
+
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        let promoted = match self {
+            Self::Heap(s) => {
+                s.replace_range(range, replace_with);
+                return;
+            }
+            Self::Inline(s) => {
+                use ops::Bound::*;
+
+                let len = s.len();
+                let start = match range.start_bound() {
+                    Included(&n) => n,
+                    Excluded(&n) => n + 1,
+                    Unbounded => 0,
+                };
+                let end = match range.end_bound() {
+                    Included(&n) => n + 1,
+                    Excluded(&n) => n,
+                    Unbounded => len,
+                };
+
+                // String index does all bounds checks.
+                let range_len = s[start..end].len();
+
+                let new_len = len - range_len + replace_with.len();
+                if INLINE_STRING_CAPACITY >= new_len {
+                    let mut ss = InlineString::new();
+
+                    // SAFETY:
+                    // Inline capacity is checked to be no less than new length,
+                    // and all three parts are checked to be valid `str`.
+                    unsafe {
+                        let buf = ss.as_bytes_mut();
+                        // Copy the [end..len] to its new place, then copy `replace_with`.
+                        let replace_end = start + replace_with.len();
+                        buf.copy_within(end..len, replace_end);
+                        buf[start..replace_end].copy_from_slice(replace_with.as_bytes());
+
+                        ss.set_len(new_len);
+                    }
+
+                    Self::Inline(ss)
+                } else {
+                    Self::Heap([&s[..start], replace_with, &s[end..]].concat())
+                }
+            }
+        };
+
+        *self = promoted;
+    }
 }
 
 #[cfg(test)]
@@ -794,6 +849,15 @@ mod tests {
             s,
             String::from_iter((0..(INLINE_STRING_CAPACITY / 3) + 1).map(|_| "foo"))
         );
+    }
+
+    #[test]
+    fn test_replace_range() {
+        let mut s = InlinableString::from("smol str");
+        assert!(matches!(&s, InlinableString::Inline(_)));
+
+        s.replace_range(1..7, LONG_STR);
+        assert_eq!(s, ["s", LONG_STR, "r"].concat());
     }
 
     // Next, some general sanity tests.

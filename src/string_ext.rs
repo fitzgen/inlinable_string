@@ -735,6 +735,49 @@ where
         recursive_retain(self, &mut f);
     }
 
+    /// Removes the specified range in the string,
+    /// and replaces it with the given string.
+    /// The given string doesn't need to be the same length as the range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("α is alpha, β is beta");
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Replace the range up until the β from the string
+    /// s.replace_range(..beta_offset, "Α is capital alpha; ");
+    /// assert_eq!(s, "Α is capital alpha; β is beta");
+    /// ```
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+
+        self.remove_range(range);
+        self.insert_str(start, replace_with);
+    }
+}
+
 /// Internal function to decrease the numbers of unsafe.
 #[inline]
 fn from_string<S: StringExt>(s: String) -> S {
@@ -873,6 +916,14 @@ impl StringExt for String {
         F: FnMut(char) -> bool,
     {
         <String>::retain(self, f)
+    }
+
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        <String>::replace_range(self, range, replace_with)
     }
 }
 
@@ -1150,6 +1201,16 @@ mod provided_methods_tests {
     }
 
     #[test]
+    fn test_replace_range() {
+        let mut s = ReqImpl::from("α is alpha, β is beta");
+        let beta_offset = s.find('β').unwrap_or(s.len());
+
+        // Replace the range up until the β from the string
+        s.replace_range(..beta_offset, "Α is capital alpha; ");
+        assert_eq!(s, "Α is capital alpha; β is beta");
+    }
+
+    #[test]
     fn test_retain() {
         let mut s = ReqImpl::from("f_o_ob_ar");
 
@@ -1295,5 +1356,12 @@ mod std_string_stringext_sanity_tests {
         let mut s = String::from("--f-oo-b-a-r---");
         StringExt::retain(&mut s, |ch| ch != '-');
         assert_eq!(s, "foobar");
+    }
+
+    #[test]
+    fn test_replace_range() {
+        let mut s = String::from("foobar");
+        StringExt::replace_range(&mut s, 1..5, "qwerty");
+        assert_eq!(s, "fqwertyr");
     }
 }
