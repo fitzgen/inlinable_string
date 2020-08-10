@@ -57,9 +57,7 @@ where
     ///
     /// let s = InlinableString::with_capacity(10);
     /// ```
-    fn with_capacity(capacity: usize) -> Self
-    where
-        Self: Sized;
+    fn with_capacity(capacity: usize) -> Self;
 
     /// Returns the vector as a string buffer, if possible, taking care not to
     /// copy it.
@@ -534,7 +532,7 @@ fn from_string<S: StringExt>(s: String) -> S {
     unsafe { S::from_utf8_unchecked(<String>::into_bytes(s)) }
 }
 
-impl<'a> StringExt<'a> for String {
+impl StringExt for String {
     #[inline]
     fn new() -> Self {
         String::new()

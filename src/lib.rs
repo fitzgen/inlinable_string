@@ -230,13 +230,12 @@ impl AsMut<str> for InlinableString {
     }
 }
 
-impl<'a> From<&'a str> for InlinableString {
+impl From<&str> for InlinableString {
     #[inline]
-    fn from(string: &'a str) -> InlinableString {
-        if string.len() <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(string.into())
-        } else {
-            InlinableString::Heap(string.into())
+    fn from(string: &str) -> InlinableString {
+        match InlineString::try_from(string) {
+            Ok(s) => InlinableString::Inline(s),
+            Err(_) => InlinableString::Heap(String::from(string)),
         }
     }
 }
@@ -244,10 +243,9 @@ impl<'a> From<&'a str> for InlinableString {
 impl From<String> for InlinableString {
     #[inline]
     fn from(string: String) -> InlinableString {
-        if string.len() <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(string.as_str().into())
-        } else {
-            InlinableString::Heap(string)
+        match InlineString::try_from(string.as_str()) {
+            Ok(s) => InlinableString::Inline(s),
+            Err(_) => InlinableString::Heap(string),
         }
     }
 }
@@ -419,7 +417,7 @@ impl_eq! { InlinableString, &'a str }
 impl_eq! { InlinableString, InlineString }
 impl_eq! { Cow<'a, str>, InlinableString }
 
-impl<'a> StringExt<'a> for InlinableString {
+impl StringExt for InlinableString {
     #[inline]
     fn new() -> Self {
         InlinableString::Inline(InlineString::new())
@@ -537,20 +535,21 @@ impl<'a> StringExt<'a> for InlinableString {
 
     #[inline]
     fn shrink_to_fit(&mut self) {
-        if self.len() <= INLINE_STRING_CAPACITY {
-            let demoted = if let InlinableString::Heap(ref s) = *self {
-                InlineString::from(&s[..])
-            } else {
-                return;
-            };
-            mem::swap(self, &mut InlinableString::Inline(demoted));
-            return;
-        }
-
-        match *self {
-            InlinableString::Heap(ref mut s) => s.shrink_to_fit(),
-            _ => panic!("inlinable_string: internal error: this branch should be unreachable"),
+        let inlined = match *self {
+            InlinableString::Heap(ref mut s) => match InlineString::try_from(s.as_str()) {
+                Ok(inlined) => Some(inlined),
+                Err(_) => {
+                    s.shrink_to_fit();
+                    None
+                }
+            },
+            // If already inlined, capacity can't be reduced.
+            _ => None,
         };
+
+        if let Some(inl) = inlined {
+            *self = InlinableString::Inline(inl);
+        }
     }
 
     #[inline]
