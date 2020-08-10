@@ -37,7 +37,7 @@
 //!
 //! // This method can work on strings potentially stored inline on the stack,
 //! // on the heap, or plain old `std::string::String`s!
-//! fn takes_a_string_reference(string: &mut StringExt) {
+//! fn takes_a_string_reference(string: &mut impl StringExt) {
 //!    // Do something with the string...
 //!    string.push_str("it works!");
 //! }
