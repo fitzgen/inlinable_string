@@ -652,6 +652,15 @@ mod tests {
     use std::cmp::Ordering;
     use std::iter::FromIterator;
 
+    const LONG_STR: &str = "this is a really long string that is much larger than
+                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
+
+    #[test]
+    fn test_long_string() {
+        // If this fails, increase the size of the long string.
+        assert!(LONG_STR.len() > INLINE_STRING_CAPACITY);
+    }
+
     #[test]
     fn test_size() {
         use std::mem::size_of;
@@ -667,10 +676,8 @@ mod tests {
         s.push_str("small");
         assert_eq!(s, "small");
 
-        let long_str = "this is a really long string that is much larger than
-                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        s.push_str(long_str);
-        assert_eq!(s, String::from("small") + long_str);
+        s.push_str(LONG_STR);
+        assert_eq!(s, String::from("small") + LONG_STR);
     }
 
     #[test]
@@ -680,10 +687,8 @@ mod tests {
         write!(&mut s, "small").expect("!write");
         assert_eq!(s, "small");
 
-        let long_str = "this is a really long string that is much larger than
-                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        write!(&mut s, "{}", long_str).expect("!write");
-        assert_eq!(s, String::from("small") + long_str);
+        write!(&mut s, "{}", LONG_STR).expect("!write");
+        assert_eq!(s, String::from("small") + LONG_STR);
     }
 
     #[test]
