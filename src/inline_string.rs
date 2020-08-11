@@ -549,17 +549,25 @@ impl InlineString {
     /// assert_eq!(s.remove(0), 'f');
     /// assert_eq!(s.remove(1), 'o');
     /// assert_eq!(s.remove(0), 'o');
+    /// assert_eq!(s, "");
     /// ```
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
-        self.assert_sanity();
-
         let ch = match self[idx..].chars().next() {
             Some(ch) => ch,
             None => panic!("cannot remove a char from the end of a string"),
         };
 
-        self.bytes.copy_within(idx + ch.len_utf8().., idx);
+        let ch_len = ch.len_utf8();
+        let len = self.len();
+        // SAFETY:
+        // `idx` was checked through string indexing;
+        // `ch` was produced by `chars` iterator,
+        // so `(idx + ch_len)..len` range is valid;
+        unsafe {
+            self.bytes.copy_within(idx + ch_len..len, idx);
+            self.set_len(len - ch_len);
+        }
 
         ch
     }
