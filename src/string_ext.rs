@@ -1050,8 +1050,8 @@ mod provided_methods_tests {
         fn remove(&mut self, idx: usize) -> char {
             self.0.remove(idx)
         }
-        fn insert(&mut self, idx: usize, ch: char) {
-            self.0.insert(idx, ch)
+        fn insert_str(&mut self, idx: usize, string: &str) {
+            self.0.insert_str(idx, string)
         }
         fn len(&self) -> usize {
             self.0.len()

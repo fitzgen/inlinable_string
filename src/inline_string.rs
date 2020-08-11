@@ -921,7 +921,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn insert_panic() {
-        let mut s = InlineString::try_from("й").unwrap();
+        let mut s = InlineString::try_from("щ").unwrap();
         let _ = s.insert(1, 'q');
     }
 
