@@ -35,10 +35,12 @@
 //! ```
 
 use std::borrow;
-use std::fmt;
+use std::convert::{Infallible, TryFrom};
+use std::fmt::{self, Display};
 use std::hash;
 use std::io::Write;
-use std::ops;
+use std::mem;
+use std::ops::{self, RangeBounds};
 use std::ptr;
 use std::str;
 
@@ -47,10 +49,10 @@ use std::str;
 ///
 /// Sometime in the future, when Rust's generics support specializing with
 /// compile-time static integers, this number should become configurable.
-#[cfg(target_pointer_width = "64")]
-pub const INLINE_STRING_CAPACITY: usize = 30;
-#[cfg(target_pointer_width = "32")]
-pub const INLINE_STRING_CAPACITY: usize = 14;
+pub const INLINE_STRING_CAPACITY: usize = {
+    use mem::size_of;
+    size_of::<String>() + size_of::<usize>() - 2
+};
 
 /// A short UTF-8 string that uses inline storage and does no heap allocation.
 ///
@@ -60,11 +62,6 @@ pub struct InlineString {
     length: u8,
     bytes: [u8; INLINE_STRING_CAPACITY],
 }
-
-/// The error returned when there is not enough space in a `InlineString` for the
-/// requested operation.
-#[derive(Debug, PartialEq)]
-pub struct NotEnoughSpaceError;
 
 impl AsRef<str> for InlineString {
     fn as_ref(&self) -> &str {
@@ -88,34 +85,34 @@ impl AsMut<str> for InlineString {
     }
 }
 
-impl AsMut<[u8]> for InlineString {
+/// An error type for `InlineString`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct NotEnoughCapacity;
+impl Display for NotEnoughCapacity {
     #[inline]
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.assert_sanity();
-        let length = self.len();
-        &mut self.bytes[0..length]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        "the length of the result string is bigger than maximum capacity of `InlineString`".fmt(fmt)
+    }
+}
+impl From<Infallible> for NotEnoughCapacity {
+    #[inline]
+    fn from(x: Infallible) -> NotEnoughCapacity {
+        match x {}
     }
 }
 
-/// Create a `InlineString` from the given `&str`.
-///
-/// # Panics
-///
-/// If the given string's size is greater than `INLINE_STRING_CAPACITY`, this
-/// method panics.
-impl<'a> From<&'a str> for InlineString {
-    fn from(string: &'a str) -> InlineString {
+impl TryFrom<&str> for InlineString {
+    type Error = NotEnoughCapacity;
+
+    fn try_from(string: &str) -> Result<Self, NotEnoughCapacity> {
         let string_len = string.len();
-        assert!(string_len <= INLINE_STRING_CAPACITY);
-
-        let mut ss = InlineString::new();
-        unsafe {
-            ptr::copy_nonoverlapping(string.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
+        if string_len <= INLINE_STRING_CAPACITY {
+            // SAFETY:
+            // `string_len` is not bigger than capacity.
+            unsafe { Ok(Self::from_str_unchecked(string)) }
+        } else {
+            Err(NotEnoughCapacity)
         }
-        ss.length = string_len as u8;
-
-        ss.assert_sanity();
-        ss
     }
 }
 
@@ -286,6 +283,55 @@ impl InlineString {
         );
     }
 
+    /// Turn a string slice into `InlineString` without checks.
+    ///
+    /// # Safety:
+    ///
+    /// It is instant UB if the length of `s` is bigger than `INLINE_STRING_CAPACITY`.
+    unsafe fn from_str_unchecked(s: &str) -> Self {
+        let string_len = s.len();
+        debug_assert!(
+            string_len <= INLINE_STRING_CAPACITY as usize,
+            "inlinable_string: internal error: length greater than capacity"
+        );
+
+        let mut ss = InlineString::new();
+        unsafe {
+            ptr::copy_nonoverlapping(s.as_ptr(), ss.bytes.as_mut_ptr(), string_len);
+        }
+        ss.length = string_len as u8;
+
+        ss.assert_sanity();
+
+        ss
+    }
+
+    /// Returns a mutable reference to the inner buffer.
+    ///
+    /// Safety
+    ///
+    /// The same as [`str::as_bytes_mut()`].
+    ///
+    ///[`str::as_bytes_mut()`]: https://doc.rust-lang.org/std/primitive.str.html#method.as_bytes_mut
+    #[inline]
+    pub(crate) unsafe fn as_bytes_mut(&mut self) -> &mut [u8; INLINE_STRING_CAPACITY] {
+        &mut self.bytes
+    }
+
+    /// Insanely unsafe function to set length.
+    ///
+    /// Safety
+    ///
+    /// It's UB if `new_len`
+    ///
+    /// * is bigger than `INLINE_STRING_CAPACITY`;
+    /// * doesn't lie at the start and/or end of a UTF-8 code point sequence;
+    /// * grabs some uninitialized memory.
+    #[inline]
+    pub(crate) unsafe fn set_len(&mut self, new_len: usize) {
+        self.length = new_len as u8
+    }
+
     /// Creates a new string buffer initialized with the empty string.
     ///
     /// # Examples
@@ -309,9 +355,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let s = InlineString::from("hello");
+    /// let s = InlineString::try_from("hello").unwrap();
     /// let bytes = s.into_bytes();
     /// assert_eq!(&bytes[0..5], [104, 101, 108, 108, 111]);
     /// ```
@@ -329,21 +376,22 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.push_str("bar");
     /// assert_eq!(s, "foobar");
     /// ```
     #[inline]
-    pub fn push_str(&mut self, string: &str) -> Result<(), NotEnoughSpaceError> {
+    pub fn push_str(&mut self, string: &str) -> Result<(), NotEnoughCapacity> {
         self.assert_sanity();
 
         let string_len = string.len();
         let new_length = self.len() + string_len;
 
         if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+            return Err(NotEnoughCapacity);
         }
 
         unsafe {
@@ -364,23 +412,24 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("abc");
+    /// let mut s = InlineString::try_from("abc").unwrap();
     /// s.push('1');
     /// s.push('2');
     /// s.push('3');
     /// assert_eq!(s, "abc123");
     /// ```
     #[inline]
-    pub fn push(&mut self, ch: char) -> Result<(), NotEnoughSpaceError> {
+    pub fn push(&mut self, ch: char) -> Result<(), NotEnoughCapacity> {
         self.assert_sanity();
 
         let char_len = ch.len_utf8();
         let new_length = self.len() + char_len;
 
         if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+            return Err(NotEnoughCapacity);
         }
 
         {
@@ -401,9 +450,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let s = InlineString::from("hello");
+    /// let s = InlineString::try_from("hello").unwrap();
     /// assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
     /// ```
     #[inline]
@@ -416,15 +466,17 @@ impl InlineString {
     ///
     /// # Panics
     ///
-    /// Panics if `new_len` > current length, or if `new_len` is not a character
-    /// boundary.
+    /// Panics if `new_len` does not lie on a [`char`] boundary.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("hello");
+    /// let mut s = InlineString::try_from("hello").unwrap();
     /// s.truncate(2);
     /// assert_eq!(s, "he");
     /// ```
@@ -432,15 +484,11 @@ impl InlineString {
     pub fn truncate(&mut self, new_len: usize) {
         self.assert_sanity();
 
-        assert!(
-            self.char_indices().any(|(i, _)| i == new_len),
-            "inlinable_string::InlineString::truncate: new_len is not a character
-                 boundary"
-        );
-        assert!(new_len <= self.len());
+        if new_len < self.len() {
+            assert!(self[..].is_char_boundary(new_len));
 
-        self.length = new_len as u8;
-        self.assert_sanity();
+            self.length = new_len as u8;
+        }
     }
 
     /// Removes the last character from the string buffer and returns it.
@@ -449,9 +497,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// assert_eq!(s.pop(), Some('o'));
     /// assert_eq!(s.pop(), Some('o'));
     /// assert_eq!(s.pop(), Some('f'));
@@ -476,46 +525,99 @@ impl InlineString {
     ///
     /// # Panics
     ///
-    /// If `idx` does not lie on a character boundary, or if it is out of
-    /// bounds, then this function will panic.
+    /// Panics if `idx` is larger than or equal to the `String`'s length,
+    /// or if it does not lie on a [`char`] boundary.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// assert_eq!(s.remove(0), 'f');
     /// assert_eq!(s.remove(1), 'o');
     /// assert_eq!(s.remove(0), 'o');
+    /// assert_eq!(s, "");
     /// ```
     #[inline]
     pub fn remove(&mut self, idx: usize) -> char {
-        self.assert_sanity();
-        assert!(idx <= self.len());
+        let ch = match self[idx..].chars().next() {
+            Some(ch) => ch,
+            None => panic!("cannot remove a char from the end of a string"),
+        };
 
-        match self.char_indices().find(|&(i, _)| i == idx) {
-            None => panic!(
-                "inlinable_string::InlineString::remove: idx does not lie on a
-                            character boundary"
-            ),
-            Some((_, ch)) => {
-                let char_len = ch.len_utf8();
-                let next = idx + char_len;
-
-                unsafe {
-                    ptr::copy(
-                        self.bytes.as_ptr().add(next),
-                        self.bytes.as_mut_ptr().add(idx),
-                        self.len() - next,
-                    );
-                }
-                self.length -= char_len as u8;
-
-                self.assert_sanity();
-                ch
-            }
+        let ch_len = ch.len_utf8();
+        let len = self.len();
+        // SAFETY:
+        // `idx` was checked through string indexing;
+        // `ch` was produced by `chars` iterator,
+        // so `(idx + ch_len)..len` range is valid;
+        unsafe {
+            self.bytes.copy_within(idx + ch_len..len, idx);
+            self.set_len(len - ch_len);
         }
+
+        ch
+    }
+
+    /// Removes the specified range from the string buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("α is not β!").unwrap();
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Remove the range up until the β from the string
+    /// s.remove_range(..beta_offset);
+    ///
+    /// assert_eq!(s, "β!");
+    ///
+    /// // A full range clears the string
+    /// s.remove_range(..);
+    /// assert_eq!(s, "");
+    /// ```
+    #[inline]
+    pub fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+
+        // Checking bounds.
+        let s: &str = &self;
+        assert!(s.is_char_boundary(end) && start <= end && s.is_char_boundary(start));
+
+        // Start and end are checked, remove everything inside that range.
+        self.bytes.copy_within(end.., start);
+        self.length -= (end - start) as u8;
     }
 
     /// Inserts a character into the string buffer at byte position `idx`.
@@ -523,9 +625,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.insert(2, 'f');
     /// assert!(s == "fofo");
     /// ```
@@ -535,32 +638,48 @@ impl InlineString {
     /// If `idx` does not lie on a character boundary or is out of bounds, then
     /// this function will panic.
     #[inline]
-    pub fn insert(&mut self, idx: usize, ch: char) -> Result<(), NotEnoughSpaceError> {
-        self.assert_sanity();
-        assert!(idx <= self.len());
+    pub fn insert(&mut self, idx: usize, ch: char) -> Result<(), NotEnoughCapacity> {
+        let mut bits = [0; 4];
+        self.insert_str(idx, ch.encode_utf8(&mut bits))
+    }
 
-        let char_len = ch.len_utf8();
-        let new_length = self.len() + char_len;
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("foo").unwrap();
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    #[inline]
+    pub fn insert_str(&mut self, idx: usize, string: &str) -> Result<(), NotEnoughCapacity> {
+        let len = self.len();
+        let amt = string.len();
+        let len_sum = len + amt;
 
-        if new_length > INLINE_STRING_CAPACITY {
-            return Err(NotEnoughSpaceError);
+        if len_sum > INLINE_STRING_CAPACITY {
+            return Err(NotEnoughCapacity);
         }
 
+        // SAFETY:
+        // `idx` is a char boundary and <= `len`, thus it's also `<=` lengths' sum,
+        // lengths' sum is checked to be `<=` than `INLINE_STRING_CAPACITY`,
+        // and `string` is a well-formed `str`.
         unsafe {
+            assert!(self.is_char_boundary(idx));
             ptr::copy(
                 self.bytes.as_ptr().add(idx),
-                self.bytes.as_mut_ptr().add(idx + char_len),
-                self.len() - idx,
+                self.bytes.as_mut_ptr().add(idx + amt),
+                len - idx,
             );
-            let mut slice = &mut self.bytes[idx..idx + char_len];
-            write!(&mut slice, "{}", ch).expect(
-                "inlinable_string: internal error: we should have enough space, we
-                         checked above",
-            );
+            ptr::copy_nonoverlapping(string.as_ptr(), self.bytes.as_mut_ptr().add(idx), amt);
+            self.set_len(len_sum);
         }
-        self.length = new_length as u8;
 
-        self.assert_sanity();
         Ok(())
     }
 
@@ -574,9 +693,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("hello");
+    /// let mut s = InlineString::try_from("hello").unwrap();
     /// unsafe {
     ///     let slice = s.as_mut_slice();
     ///     assert!(slice == &[104, 101, 108, 108, 111]);
@@ -595,9 +715,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let a = InlineString::from("foo");
+    /// let a = InlineString::try_from("foo").unwrap();
     /// assert_eq!(a.len(), 3);
     /// ```
     #[inline]
@@ -629,9 +750,10 @@ impl InlineString {
     /// # Examples
     ///
     /// ```
+    /// use std::convert::TryFrom;
     /// use inlinable_string::InlineString;
     ///
-    /// let mut s = InlineString::from("foo");
+    /// let mut s = InlineString::try_from("foo").unwrap();
     /// s.clear();
     /// assert!(s.is_empty());
     /// ```
@@ -641,11 +763,126 @@ impl InlineString {
         self.length = 0;
         self.assert_sanity();
     }
+
+    /// Splits the string into two at the given index.
+    ///
+    /// Returns a new buffer. `self` contains bytes `[0, at)`, and
+    /// the returned buffer contains bytes `[at, len)`. `at` must be on the
+    /// boundary of a UTF-8 code point.
+    ///
+    /// Note that the capacity of `self` does not change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at` is not on a `UTF-8` code point boundary, or if it is beyond the last
+    /// code point of the string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn main() {
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut hello = InlineString::try_from("Hello, World!").unwrap();
+    /// let world = hello.split_off(7);
+    /// assert_eq!(hello, "Hello, ");
+    /// assert_eq!(world, "World!");
+    /// # }
+    /// ```
+    #[inline]
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    pub fn split_off(&mut self, at: usize) -> Self {
+        // String index does all bounds checks.
+        let s: &str = &self[at..];
+
+        // SAFETY:
+        // `s` is a part of `InlineString`, thus its length is never bigger
+        // than `INLINE_STRING_CAPACITY`.
+        let right_part = unsafe { Self::from_str_unchecked(s) };
+        self.length = at as u8;
+
+        right_part
+    }
+
+    /// Retains only the characters specified by the predicate.
+    ///
+    /// In other words, remove all characters `c` such that `f(c)` returns `false`.
+    /// This method operates in place, visiting each character exactly once in the
+    /// original order, and preserves the order of the retained characters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("f_o_ob_ar").unwrap();
+    ///
+    /// s.retain(|c| c != '_');
+    ///
+    /// assert_eq!(s, "foobar");
+    /// ```
+    ///
+    /// The exact order may be useful for tracking external state, like an index.
+    ///
+    /// ```
+    /// use std::convert::TryFrom;
+    /// use inlinable_string::InlineString;
+    ///
+    /// let mut s = InlineString::try_from("abcde").unwrap();
+    /// let keep = [false, true, true, false, true];
+    /// let mut i = 0;
+    /// s.retain(|_| (keep[i], i += 1).0);
+    /// assert_eq!(s, "bce");
+    /// ```
+    #[inline]
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        // Since `InlineString` is a little stack-allocated buffer,
+        // there's almost no difference whether it's retained in-place
+        // or not.
+
+        let mut buffer = Self::new();
+        let buf = &mut buffer.bytes;
+        let mut ptr = 0;
+        let mut copy_bytes = 0;
+
+        let s = &self[..];
+        s.char_indices().for_each(|(idx, ch)| {
+            if f(ch) {
+                copy_bytes += ch.len_utf8();
+            } else if copy_bytes > 0 {
+                let next_ptr = ptr + copy_bytes;
+                buf[ptr..next_ptr].copy_from_slice(&s.as_bytes()[idx - copy_bytes..idx]);
+
+                ptr = next_ptr;
+                copy_bytes = 0;
+            }
+        });
+
+        if copy_bytes > 0 {
+            // If the whole string is retained, do nothing.
+            if copy_bytes == s.len() {
+                return;
+            }
+
+            let next_ptr = ptr + copy_bytes;
+            buf[ptr..next_ptr].copy_from_slice(&s.as_bytes()[s.len() - copy_bytes..]);
+
+            ptr = next_ptr;
+        }
+
+        buffer.length = ptr as u8;
+        *self = buffer;
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{InlineString, NotEnoughSpaceError, INLINE_STRING_CAPACITY};
+    use super::{InlineString, NotEnoughCapacity, TryFrom, INLINE_STRING_CAPACITY};
 
     #[test]
     fn test_push_str() {
@@ -655,7 +892,7 @@ mod tests {
 
         let long_str = "this is a really long string that is much larger than
                         INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        assert_eq!(s.push_str(long_str), Err(NotEnoughSpaceError));
+        assert_eq!(s.push_str(long_str), Err(NotEnoughCapacity));
         assert_eq!(s, "small");
     }
 
@@ -667,7 +904,7 @@ mod tests {
             assert!(s.push('a').is_ok());
         }
 
-        assert_eq!(s.push('a'), Err(NotEnoughSpaceError));
+        assert_eq!(s.push('a'), Err(NotEnoughCapacity));
     }
 
     #[test]
@@ -678,7 +915,14 @@ mod tests {
             assert!(s.insert(0, 'a').is_ok());
         }
 
-        assert_eq!(s.insert(0, 'a'), Err(NotEnoughSpaceError));
+        assert_eq!(s.insert(0, 'a'), Err(NotEnoughCapacity));
+    }
+
+    #[test]
+    #[should_panic]
+    fn insert_panic() {
+        let mut s = InlineString::try_from("щ").unwrap();
+        let _ = s.insert(1, 'q');
     }
 
     #[test]

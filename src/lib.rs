@@ -37,7 +37,7 @@
 //!
 //! // This method can work on strings potentially stored inline on the stack,
 //! // on the heap, or plain old `std::string::String`s!
-//! fn takes_a_string_reference(string: &mut StringExt) {
+//! fn takes_a_string_reference(string: &mut impl StringExt) {
 //!    // Do something with the string...
 //!    string.push_str("it works!");
 //! }
@@ -98,13 +98,14 @@ pub mod string_ext;
 pub use inline_string::{InlineString, INLINE_STRING_CAPACITY};
 pub use string_ext::StringExt;
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::{Borrow, BorrowMut, Cow};
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::fmt;
 use std::hash;
 use std::iter;
 use std::mem;
-use std::ops;
+use std::ops::{self, RangeBounds};
 use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// An owned, grow-able UTF-8 string that allocates short strings inline on the
@@ -205,6 +206,12 @@ impl Borrow<str> for InlinableString {
     }
 }
 
+impl BorrowMut<str> for InlinableString {
+    fn borrow_mut(&mut self) -> &mut str {
+        &mut *self
+    }
+}
+
 impl AsRef<str> for InlinableString {
     fn as_ref(&self) -> &str {
         match *self {
@@ -223,13 +230,12 @@ impl AsMut<str> for InlinableString {
     }
 }
 
-impl<'a> From<&'a str> for InlinableString {
+impl From<&str> for InlinableString {
     #[inline]
-    fn from(string: &'a str) -> InlinableString {
-        if string.len() <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(string.into())
-        } else {
-            InlinableString::Heap(string.into())
+    fn from(string: &str) -> InlinableString {
+        match InlineString::try_from(string) {
+            Ok(s) => InlinableString::Inline(s),
+            Err(_) => InlinableString::Heap(String::from(string)),
         }
     }
 }
@@ -237,10 +243,9 @@ impl<'a> From<&'a str> for InlinableString {
 impl From<String> for InlinableString {
     #[inline]
     fn from(string: String) -> InlinableString {
-        if string.len() <= INLINE_STRING_CAPACITY {
-            InlinableString::Inline(string.as_str().into())
-        } else {
-            InlinableString::Heap(string)
+        match InlineString::try_from(string.as_str()) {
+            Ok(s) => InlinableString::Inline(s),
+            Err(_) => InlinableString::Heap(string),
         }
     }
 }
@@ -412,7 +417,7 @@ impl_eq! { InlinableString, &'a str }
 impl_eq! { InlinableString, InlineString }
 impl_eq! { Cow<'a, str>, InlinableString }
 
-impl<'a> StringExt<'a> for InlinableString {
+impl StringExt for InlinableString {
     #[inline]
     fn new() -> Self {
         InlinableString::Inline(InlineString::new())
@@ -530,20 +535,21 @@ impl<'a> StringExt<'a> for InlinableString {
 
     #[inline]
     fn shrink_to_fit(&mut self) {
-        if self.len() <= INLINE_STRING_CAPACITY {
-            let demoted = if let InlinableString::Heap(ref s) = *self {
-                InlineString::from(&s[..])
-            } else {
-                return;
-            };
-            mem::swap(self, &mut InlinableString::Inline(demoted));
-            return;
-        }
-
-        match *self {
-            InlinableString::Heap(ref mut s) => s.shrink_to_fit(),
-            _ => panic!("inlinable_string: internal error: this branch should be unreachable"),
+        let inlined = match *self {
+            InlinableString::Heap(ref mut s) => match InlineString::try_from(s.as_str()) {
+                Ok(inlined) => Some(inlined),
+                Err(_) => {
+                    s.shrink_to_fit();
+                    None
+                }
+            },
+            // If already inlined, capacity can't be reduced.
+            _ => None,
         };
+
+        if let Some(inl) = inlined {
+            *self = InlinableString::Inline(inl);
+        }
     }
 
     #[inline]
@@ -601,6 +607,17 @@ impl<'a> StringExt<'a> for InlinableString {
     }
 
     #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        match self {
+            InlinableString::Heap(s) => s.remove_range(range),
+            InlinableString::Inline(s) => s.remove_range(range),
+        }
+    }
+
+    #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         let promoted = match *self {
             InlinableString::Heap(ref mut s) => {
@@ -624,6 +641,29 @@ impl<'a> StringExt<'a> for InlinableString {
     }
 
     #[inline]
+    fn insert_str(&mut self, idx: usize, string: &str) {
+        let promoted = match *self {
+            InlinableString::Heap(ref mut s) => {
+                s.insert_str(idx, string);
+                return;
+            }
+            InlinableString::Inline(ref mut s) => {
+                if s.insert_str(idx, string).is_ok() {
+                    return;
+                }
+
+                let mut promoted = String::with_capacity(s.len() + string.len());
+                promoted.push_str(&s[..idx]);
+                promoted.push_str(string);
+                promoted.push_str(&s[idx..]);
+                promoted
+            }
+        };
+
+        mem::swap(self, &mut InlinableString::Heap(promoted));
+    }
+
+    #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
         match *self {
             InlinableString::Heap(ref mut s) => &mut s.as_mut_vec()[..],
@@ -638,6 +678,87 @@ impl<'a> StringExt<'a> for InlinableString {
             InlinableString::Inline(ref s) => s.len(),
         }
     }
+
+    #[inline]
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    fn split_off(&mut self, at: usize) -> Self {
+        match self {
+            InlinableString::Inline(s) => Self::Inline(s.split_off(at)),
+            InlinableString::Heap(s) => match InlineString::try_from(&s[at..]) {
+                Ok(inlined) => {
+                    s.truncate(at);
+                    Self::Inline(inlined)
+                }
+                Err(_) => Self::Heap(s.split_off(at)),
+            },
+        }
+    }
+
+    #[inline]
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        match self {
+            Self::Inline(s) => s.retain(f),
+            Self::Heap(s) => s.retain(f),
+        }
+    }
+
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        let promoted = match self {
+            Self::Heap(s) => {
+                s.replace_range(range, replace_with);
+                return;
+            }
+            Self::Inline(s) => {
+                use ops::Bound::*;
+
+                let len = s.len();
+                let start = match range.start_bound() {
+                    Included(&n) => n,
+                    Excluded(&n) => n + 1,
+                    Unbounded => 0,
+                };
+                let end = match range.end_bound() {
+                    Included(&n) => n + 1,
+                    Excluded(&n) => n,
+                    Unbounded => len,
+                };
+
+                // String index does all bounds checks.
+                let range_len = s[start..end].len();
+
+                let new_len = len - range_len + replace_with.len();
+                if INLINE_STRING_CAPACITY >= new_len {
+                    let mut ss = InlineString::new();
+
+                    // SAFETY:
+                    // Inline capacity is checked to be no less than new length,
+                    // and all three parts are checked to be valid `str`.
+                    unsafe {
+                        let buf = ss.as_bytes_mut();
+                        // Copy the [end..len] to its new place, then copy `replace_with`.
+                        let replace_end = start + replace_with.len();
+                        buf.copy_within(end..len, replace_end);
+                        buf[start..replace_end].copy_from_slice(replace_with.as_bytes());
+
+                        ss.set_len(new_len);
+                    }
+
+                    Self::Inline(ss)
+                } else {
+                    Self::Heap([&s[..start], replace_with, &s[end..]].concat())
+                }
+            }
+        };
+
+        *self = promoted;
+    }
 }
 
 #[cfg(test)]
@@ -645,6 +766,15 @@ mod tests {
     use super::{InlinableString, StringExt, INLINE_STRING_CAPACITY};
     use std::cmp::Ordering;
     use std::iter::FromIterator;
+
+    const LONG_STR: &str = "this is a really long string that is much larger than
+                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
+
+    #[test]
+    fn test_long_string() {
+        // If this fails, increase the size of the long string.
+        assert!(LONG_STR.len() > INLINE_STRING_CAPACITY);
+    }
 
     #[test]
     fn test_size() {
@@ -661,10 +791,8 @@ mod tests {
         s.push_str("small");
         assert_eq!(s, "small");
 
-        let long_str = "this is a really long string that is much larger than
-                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        s.push_str(long_str);
-        assert_eq!(s, String::from("small") + long_str);
+        s.push_str(LONG_STR);
+        assert_eq!(s, String::from("small") + LONG_STR);
     }
 
     #[test]
@@ -674,10 +802,8 @@ mod tests {
         write!(&mut s, "small").expect("!write");
         assert_eq!(s, "small");
 
-        let long_str = "this is a really long string that is much larger than
-                        INLINE_STRING_CAPACITY and so cannot be stored inline.";
-        write!(&mut s, "{}", long_str).expect("!write");
-        assert_eq!(s, String::from("small") + long_str);
+        write!(&mut s, "{}", LONG_STR).expect("!write");
+        assert_eq!(s, String::from("small") + LONG_STR);
     }
 
     #[test]
@@ -710,7 +836,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_insert_str() {
+        let mut s = InlinableString::new();
+
+        for _ in 0..(INLINE_STRING_CAPACITY / 3) {
+            s.insert_str(0, "foo");
+        }
+        s.insert_str(0, "foo");
+
+        assert_eq!(
+            s,
+            String::from_iter((0..(INLINE_STRING_CAPACITY / 3) + 1).map(|_| "foo"))
+        );
+    }
+
+    #[test]
+    fn test_replace_range() {
+        let mut s = InlinableString::from("smol str");
+        assert!(matches!(&s, InlinableString::Inline(_)));
+
+        s.replace_range(1..7, LONG_STR);
+        assert_eq!(s, ["s", LONG_STR, "r"].concat());
+    }
+
     // Next, some general sanity tests.
+
+    #[test]
+    fn test_split_off() {
+        // This test checks `Heap -> (Heap, Inline)` case of the function;
+        // `Heap -> (Heap, Heap)` is tested by `String` itself,
+        // `Inline -> (Inline, Inline)` is tested by `InlineString`.
+
+        let mut inlinable: InlinableString = LONG_STR.into();
+        let len = LONG_STR.len();
+        assert!(len > INLINE_STRING_CAPACITY as usize);
+
+        let at = len - 7;
+        let right_part = inlinable.split_off(at);
+        assert_eq!(&LONG_STR[..at], inlinable);
+        assert_eq!(&LONG_STR[at..], right_part);
+        assert!(matches!(inlinable, InlinableString::Heap(_)));
+        assert!(matches!(right_part, InlinableString::Inline(_)));
+    }
 
     #[test]
     fn test_new() {

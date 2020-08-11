@@ -11,22 +11,25 @@
 //!
 //! See the [crate level documentation](./../index.html) for more.
 
-use std::borrow::{Borrow, Cow};
+use std::borrow::{Borrow, BorrowMut, Cow};
 use std::cmp::PartialEq;
 use std::fmt::Display;
+use std::ops::RangeBounds;
+use std::str;
 use std::string::{FromUtf16Error, FromUtf8Error};
 
 /// A trait that exists to abstract string operations over any number of
 /// concrete string type implementations.
 ///
 /// See the [crate level documentation](./../index.html) for more.
-pub trait StringExt<'a>:
-    Borrow<str>
-    + Display
-    + PartialEq<str>
-    + PartialEq<&'a str>
-    + PartialEq<String>
-    + PartialEq<Cow<'a, str>>
+pub trait StringExt
+where
+    for<'a> Self: Sized
+        + Display
+        + PartialEq<str>
+        + PartialEq<String>
+        + PartialEq<&'a str>
+        + PartialEq<Cow<'a, str>>,
 {
     /// Creates a new string buffer initialized with the empty string.
     ///
@@ -37,9 +40,10 @@ pub trait StringExt<'a>:
     ///
     /// let s = InlinableString::new();
     /// ```
-    fn new() -> Self
-    where
-        Self: Sized;
+    #[inline]
+    fn new() -> Self {
+        Self::with_capacity(0)
+    }
 
     /// Creates a new string buffer with the given capacity. The string will be
     /// able to hold at least `capacity` bytes without reallocating. If
@@ -53,9 +57,7 @@ pub trait StringExt<'a>:
     ///
     /// let s = InlinableString::with_capacity(10);
     /// ```
-    fn with_capacity(capacity: usize) -> Self
-    where
-        Self: Sized;
+    fn with_capacity(capacity: usize) -> Self;
 
     /// Returns the vector as a string buffer, if possible, taking care not to
     /// copy it.
@@ -79,9 +81,10 @@ pub trait StringExt<'a>:
     /// let err = s.utf8_error();
     /// assert_eq!(s.into_bytes(), [240, 144, 128]);
     /// ```
-    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error>
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf8(vec: Vec<u8>) -> Result<Self, FromUtf8Error> {
+        String::from_utf8(vec).map(from_string)
+    }
 
     /// Converts a vector of bytes to a new UTF-8 string.
     /// Any invalid UTF-8 sequences are replaced with U+FFFD REPLACEMENT CHARACTER.
@@ -95,10 +98,8 @@ pub trait StringExt<'a>:
     /// let output = InlinableString::from_utf8_lossy(input);
     /// assert_eq!(output, "Hello \u{FFFD}World");
     /// ```
-    fn from_utf8_lossy(v: &'a [u8]) -> Cow<'a, str>
-    where
-        Self: Sized,
-    {
+    #[inline]
+    fn from_utf8_lossy(v: &[u8]) -> Cow<str> {
         String::from_utf8_lossy(v)
     }
 
@@ -120,9 +121,10 @@ pub trait StringExt<'a>:
     /// v[4] = 0xD800;
     /// assert!(InlinableString::from_utf16(v).is_err());
     /// ```
-    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error>
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf16(v: &[u16]) -> Result<Self, FromUtf16Error> {
+        String::from_utf16(v).map(from_string)
+    }
 
     /// Decode a UTF-16 encoded vector `v` into a string, replacing
     /// invalid data with the replacement character (U+FFFD).
@@ -140,25 +142,30 @@ pub trait StringExt<'a>:
     /// assert_eq!(InlinableString::from_utf16_lossy(v),
     ///            InlinableString::from("𝄞mus\u{FFFD}ic\u{FFFD}"));
     /// ```
-    fn from_utf16_lossy(v: &[u16]) -> Self
-    where
-        Self: Sized;
+    #[inline]
+    fn from_utf16_lossy(v: &[u16]) -> Self {
+        from_string(String::from_utf16_lossy(v))
+    }
 
-    /// Creates a new `InlinableString` from a length, capacity, and pointer.
+    /// Creates a new string from a length, capacity, and pointer.
     ///
     /// # Safety
     ///
-    /// This is _very_ unsafe because:
+    /// This function is just a shortened call to two other unsafe functions,
+    /// therefore it inherits all unsafety of those:
     ///
-    /// * We call `String::from_raw_parts` to get a `Vec<u8>`. Therefore, this
-    ///   function inherits all of its unsafety, see [its
-    ///   documentation](https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html#method.from_raw_parts)
-    ///   for the invariants it expects, they also apply to this function.
+    /// * First, [`Vec::from_raw_parts`] is called onto arguments;
+    ///   see the method documentation for the invariants it expects.
     ///
-    /// * We assume that the `Vec` contains valid UTF-8.
-    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self
-    where
-        Self: Sized;
+    /// * Then [`StringExt::from_utf8_unchecked`] is called onto the given vector,
+    ///   thus the vector must hold valid UTF-8 encoded string.
+    ///
+    /// [`Vec::from_raw_parts`]: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.from_raw_parts
+    /// [`StringExt::from_utf8_unchecked`]: #tymethod.from_utf8_unchecked
+    #[inline]
+    unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self {
+        Self::from_utf8_unchecked(Vec::from_raw_parts(buf, length, capacity))
+    }
 
     /// Converts a vector of bytes to a new `InlinableString` without checking
     /// if it contains valid UTF-8.
@@ -167,9 +174,7 @@ pub trait StringExt<'a>:
     ///
     /// This is unsafe because it assumes that the UTF-8-ness of the vector has
     /// already been validated.
-    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self
-    where
-        Self: Sized;
+    unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self;
 
     /// Returns the underlying byte buffer, encoded as UTF-8.
     ///
@@ -182,7 +187,13 @@ pub trait StringExt<'a>:
     /// let bytes = s.into_bytes();
     /// assert_eq!(bytes, [104, 101, 108, 108, 111]);
     /// ```
-    fn into_bytes(self) -> Vec<u8>;
+    #[inline]
+    fn into_bytes(self) -> Vec<u8>
+    where
+        Self: Into<String>,
+    {
+        Into::into(self).into_bytes()
+    }
 
     /// Pushes the given string onto this string buffer.
     ///
@@ -195,7 +206,11 @@ pub trait StringExt<'a>:
     /// s.push_str("bar");
     /// assert_eq!(s, "foobar");
     /// ```
-    fn push_str(&mut self, string: &str);
+    #[inline]
+    fn push_str(&mut self, string: &str) {
+        let len = self.len();
+        self.insert_str(len, string);
+    }
 
     /// Returns the number of bytes that this string buffer can hold without
     /// reallocating.
@@ -282,7 +297,11 @@ pub trait StringExt<'a>:
     /// s.push('3');
     /// assert_eq!(s, "abc123");
     /// ```
-    fn push(&mut self, ch: char);
+    #[inline]
+    fn push(&mut self, ch: char) {
+        let len = self.len();
+        self.insert(len, ch);
+    }
 
     /// Works with the underlying buffer as a byte slice.
     ///
@@ -294,14 +313,23 @@ pub trait StringExt<'a>:
     /// let s = InlinableString::from("hello");
     /// assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
     /// ```
-    fn as_bytes(&self) -> &[u8];
+    #[inline]
+    fn as_bytes(&self) -> &[u8]
+    where
+        Self: Borrow<str>,
+    {
+        self.borrow().as_bytes()
+    }
 
     /// Shortens a string to the specified length.
     ///
     /// # Panics
     ///
-    /// Panics if `new_len` > current length, or if `new_len` is not a character
-    /// boundary.
+    /// Panics if `new_len` does not lie on a [`char`] boundary.
+    ///
+    /// For other possible panic conditions, read documentation of the given implementation.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
     ///
     /// # Examples
     ///
@@ -355,6 +383,68 @@ pub trait StringExt<'a>:
     /// ```
     fn remove(&mut self, idx: usize) -> char;
 
+    /// Removes the specified range from the string buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("α is alpha, β is beta");
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Remove the range up until the β from the string
+    /// s.remove_range(..beta_offset);
+    ///
+    /// assert_eq!(s, "β is beta");
+    ///
+    /// // A full range clears the string
+    /// s.remove_range(..);
+    /// assert_eq!(s, "");
+    /// ```
+    #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let len = self.len();
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Included(&n) => n + 1,
+            Excluded(&n) => n,
+            Unbounded => len,
+        };
+
+        // Checking bounds.
+        assert!(start <= end);
+
+        let diff = end - start;
+
+        let mut sum = 0;
+        while sum < diff {
+            sum += self.remove(start).len_utf8();
+        }
+
+        // Sanity check: number of deleted bytes must be equal
+        // to the range length.
+        assert_eq!(diff, sum);
+    }
+
     /// Inserts a character into the string buffer at byte position `idx`.
     ///
     /// # Warning
@@ -376,7 +466,44 @@ pub trait StringExt<'a>:
     ///
     /// If `idx` does not lie on a character boundary or is out of bounds, then
     /// this function will panic.
-    fn insert(&mut self, idx: usize, ch: char);
+    #[inline]
+    fn insert(&mut self, idx: usize, ch: char) {
+        let mut bits = [0; 4];
+        self.insert_str(idx, ch.encode_utf8(&mut bits));
+    }
+
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Warning
+    ///
+    /// This is an O(n) operation as it requires copying every element in the
+    /// buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("foo");
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If `idx` does not lie on a character boundary or is out of bounds, then
+    /// this function will panic.
+    fn insert_str(&mut self, idx: usize, string: &str);
+    /* It looks like `insert_str` is better manually implemented,
+     * while provided `insert` is mostly okay.
+    {
+        let mut idx = idx;
+        string.chars().for_each(|ch| {
+            self.insert(idx, ch);
+            idx += ch.len_utf8();
+        });
+    }
+    */
 
     /// Views the string buffer as a mutable sequence of bytes.
     ///
@@ -398,7 +525,13 @@ pub trait StringExt<'a>:
     /// }
     /// assert_eq!(s, "olleh");
     /// ```
-    unsafe fn as_mut_slice(&mut self) -> &mut [u8];
+    #[inline]
+    unsafe fn as_mut_slice(&mut self) -> &mut [u8]
+    where
+        Self: BorrowMut<str>,
+    {
+        self.borrow_mut().as_bytes_mut()
+    }
 
     /// Returns the number of bytes in this string.
     ///
@@ -444,9 +577,216 @@ pub trait StringExt<'a>:
     fn clear(&mut self) {
         self.truncate(0);
     }
+
+    /// Extracts a string slice containing the entire string buffer.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let s = InlinableString::from("foo");
+    ///
+    /// assert_eq!("foo", s.as_str());
+    /// ```
+    #[inline]
+    fn as_str(&self) -> &str
+    where
+        Self: Borrow<str>,
+    {
+        self.borrow()
+    }
+
+    /// Converts this extandable string into a mutable string slice.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("foobar");
+    /// let s_mut_str = s.as_mut_str();
+    ///
+    /// s_mut_str.make_ascii_uppercase();
+    ///
+    /// assert_eq!("FOOBAR", s_mut_str);
+    /// ```
+    #[inline]
+    fn as_mut_str(&mut self) -> &mut str
+    where
+        Self: BorrowMut<str>,
+    {
+        self.borrow_mut()
+    }
+
+    /// Converts this `String` into a [`Box`]`<`[`str`]`>`.
+    ///
+    /// This will drop any excess capacity.
+    ///
+    /// [`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
+    /// [`str`]: https://doc.rust-lang.org/std/primitive.str.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let s = InlinableString::from("hello");
+    ///
+    /// let b = s.into_boxed_str();
+    /// ```
+    #[inline]
+    fn into_boxed_str(self) -> Box<str>
+    where
+        Self: Into<String>,
+    {
+        let s = self.into();
+        <String>::into_boxed_str(s)
+    }
+
+    /// Splits the string into two at the given index.
+    ///
+    /// Returns a new buffer. `self` contains bytes `[0, at)`, and
+    /// the returned buffer contains bytes `[at, len)`. `at` must be on the
+    /// boundary of a UTF-8 code point.
+    ///
+    /// Note that the capacity of `self` does not change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `at` is not on a `UTF-8` code point boundary, or if it is beyond the last
+    /// code point of the string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn main() {
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut hello = InlinableString::from("Hello, World!");
+    /// let world = hello.split_off(7);
+    /// assert_eq!(hello, "Hello, ");
+    /// assert_eq!(world, "World!");
+    /// # }
+    /// ```
+    #[must_use = "use `.truncate()` if you don't need the other half"]
+    fn split_off(&mut self, at: usize) -> Self;
+
+    /// Retains only the characters specified by the predicate.
+    ///
+    /// In other words, remove all characters `c` such that `f(c)` returns `false`.
+    /// This method operates in place, visiting each character exactly once in the
+    /// original order, and preserves the order of the retained characters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("f_o_ob_ar");
+    ///
+    /// s.retain(|c| c != '_');
+    ///
+    /// assert_eq!(s, "foobar");
+    /// ```
+    ///
+    /// The exact order may be useful for tracking external state, like an index.
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("abcde");
+    /// let keep = [false, true, true, false, true];
+    /// let mut i = 0;
+    /// s.retain(|_| (keep[i], i += 1).0);
+    /// assert_eq!(s, "bce");
+    /// ```
+    #[inline]
+    fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        /// Insanely ineffective implementation,
+        /// yet it is done "in-place" if you don't count
+        /// a lot of stack space.
+        #[inline]
+        fn recursive_retain<SE, F>(self_: &mut SE, f: &mut F)
+        where
+            F: FnMut(char) -> bool,
+            SE: StringExt,
+        {
+            match self_.pop() {
+                Some(ch) => {
+                    recursive_retain(self_, f);
+                    if f(ch) {
+                        self_.push(ch);
+                    }
+                }
+                None => (),
+            }
+        }
+
+        recursive_retain(self, &mut f);
+    }
+
+    /// Removes the specified range in the string,
+    /// and replaces it with the given string.
+    /// The given string doesn't need to be the same length as the range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the starting point or end point do not lie on a [`char`]
+    /// boundary, or if they're out of bounds.
+    ///
+    /// [`char`]: https://doc.rust-lang.org/std/primitive.char.html
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("α is alpha, β is beta");
+    /// let beta_offset = s.find('β').unwrap_or(s.len());
+    ///
+    /// // Replace the range up until the β from the string
+    /// s.replace_range(..beta_offset, "Α is capital alpha; ");
+    /// assert_eq!(s, "Α is capital alpha; β is beta");
+    /// ```
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        use ops::Bound::*;
+
+        let start = match range.start_bound() {
+            Included(&n) => n,
+            Excluded(&n) => n + 1,
+            Unbounded => 0,
+        };
+
+        self.remove_range(range);
+        self.insert_str(start, replace_with);
+    }
 }
 
-impl<'a> StringExt<'a> for String {
+/// Internal function to decrease the numbers of unsafe.
+#[inline]
+fn from_string<S: StringExt>(s: String) -> S {
+    // SAFETY:
+    // `s` is a well-formed string, turned into bytes.
+    unsafe { S::from_utf8_unchecked(<String>::into_bytes(s)) }
+}
+
+impl StringExt for String {
     #[inline]
     fn new() -> Self {
         String::new()
@@ -538,8 +878,21 @@ impl<'a> StringExt<'a> for String {
     }
 
     #[inline]
+    fn remove_range<R>(&mut self, range: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        String::drain(self, range);
+    }
+
+    #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         String::insert(self, idx, ch)
+    }
+
+    #[inline]
+    fn insert_str(&mut self, idx: usize, string: &str) {
+        String::insert_str(self, idx, string)
     }
 
     #[inline]
@@ -550,6 +903,349 @@ impl<'a> StringExt<'a> for String {
     #[inline]
     fn len(&self) -> usize {
         String::len(self)
+    }
+
+    #[inline]
+    fn split_off(&mut self, at: usize) -> Self {
+        <String>::split_off(self, at)
+    }
+
+    #[inline]
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        <String>::retain(self, f)
+    }
+
+    #[inline]
+    fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        <String>::replace_range(self, range, replace_with)
+    }
+}
+
+/// Implementation of some traits from stdlib for `String` type.
+/// This is 1.41.0+ code; before 1.41 orphan rules were too strict.
+mod string_impls {
+    use crate::{InlinableString, InlineString};
+
+    impl From<InlineString> for String {
+        #[inline]
+        fn from(s: InlineString) -> String {
+            String::from(&*s)
+        }
+    }
+
+    impl From<InlinableString> for String {
+        #[inline]
+        fn from(s: InlinableString) -> String {
+            match s {
+                InlinableString::Heap(s) => s,
+                InlinableString::Inline(s) => String::from(s),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod provided_methods_tests {
+
+    use super::StringExt;
+    use std::{
+        borrow::{Borrow, BorrowMut, Cow},
+        cmp::PartialEq,
+        fmt,
+        ops::{Deref, DerefMut},
+    };
+
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct ReqImpl(String);
+
+    impl From<ReqImpl> for String {
+        fn from(s: ReqImpl) -> Self {
+            s.0
+        }
+    }
+
+    impl From<&str> for ReqImpl {
+        fn from(s: &str) -> Self {
+            Self(String::from(s))
+        }
+    }
+    impl Deref for ReqImpl {
+        type Target = str;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+    impl DerefMut for ReqImpl {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+    impl fmt::Display for ReqImpl {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+    impl PartialEq<str> for ReqImpl {
+        fn eq(&self, other: &str) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<String> for ReqImpl {
+        fn eq(&self, other: &String) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<&str> for ReqImpl {
+        fn eq(&self, other: &&str) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl PartialEq<Cow<'_, str>> for ReqImpl {
+        fn eq(&self, other: &Cow<str>) -> bool {
+            self.0.eq(other)
+        }
+    }
+    impl Borrow<str> for ReqImpl {
+        fn borrow(&self) -> &str {
+            &self.0
+        }
+    }
+    impl BorrowMut<str> for ReqImpl {
+        fn borrow_mut(&mut self) -> &mut str {
+            &mut self.0
+        }
+    }
+
+    impl StringExt for ReqImpl {
+        fn with_capacity(capacity: usize) -> Self {
+            Self(String::with_capacity(capacity))
+        }
+        unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self {
+            Self(String::from_utf8_unchecked(bytes))
+        }
+        fn capacity(&self) -> usize {
+            self.0.capacity()
+        }
+        fn reserve(&mut self, additional: usize) {
+            self.0.reserve(additional)
+        }
+        fn reserve_exact(&mut self, additional: usize) {
+            self.0.reserve_exact(additional)
+        }
+        fn shrink_to_fit(&mut self) {
+            self.0.shrink_to_fit()
+        }
+        fn truncate(&mut self, new_len: usize) {
+            self.0.truncate(new_len)
+        }
+        fn pop(&mut self) -> Option<char> {
+            self.0.pop()
+        }
+        fn remove(&mut self, idx: usize) -> char {
+            self.0.remove(idx)
+        }
+        fn insert_str(&mut self, idx: usize, string: &str) {
+            self.0.insert_str(idx, string)
+        }
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+        fn split_off(&mut self, at: usize) -> Self {
+            Self(self.0.split_off(at))
+        }
+    }
+
+    #[test]
+    fn test_as_bytes() {
+        let s = ReqImpl::from("hello");
+        assert_eq!(s.as_bytes(), [104, 101, 108, 108, 111]);
+    }
+
+    #[test]
+    fn test_as_mut_slice() {
+        let mut s = ReqImpl::from("hello");
+        unsafe {
+            let slice = s.as_mut_slice();
+            assert!(slice == &[104, 101, 108, 108, 111]);
+            slice.reverse();
+        }
+        assert_eq!(s, "olleh");
+    }
+
+    #[test]
+    fn test_as_mut_str() {
+        let mut s = ReqImpl::from("foobar");
+        let s_mut_str = s.as_mut_str();
+
+        s_mut_str.make_ascii_uppercase();
+
+        assert_eq!("FOOBAR", s_mut_str);
+    }
+
+    #[test]
+    fn test_as_str() {
+        let s = ReqImpl::from("foo");
+
+        assert_eq!("foo", s.as_str());
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut s = ReqImpl::from("foo");
+        s.clear();
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn test_from_raw_parts() {
+        use std::mem;
+
+        unsafe {
+            let s = ReqImpl::from("hello");
+
+            let mut s = mem::ManuallyDrop::new(s);
+
+            let ptr = s.0.as_mut_ptr();
+            let len = s.len();
+            let capacity = s.capacity();
+
+            let s = ReqImpl::from_raw_parts(ptr, len, capacity);
+
+            assert_eq!(s, "hello");
+        }
+    }
+
+    #[test]
+    fn test_from_utf16() {
+        // 𝄞music
+        let v = &mut [0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0x0069, 0x0063];
+        assert_eq!(ReqImpl::from_utf16(v).unwrap(), ReqImpl::from("𝄞music"));
+
+        // 𝄞mu<invalid>ic
+        v[4] = 0xD800;
+        assert!(ReqImpl::from_utf16(v).is_err());
+    }
+
+    #[test]
+    fn test_from_utf16_lossy() {
+        // 𝄞mus<invalid>ic<invalid>
+        let v = &[
+            0xD834, 0xDD1E, 0x006d, 0x0075, 0x0073, 0xDD1E, 0x0069, 0x0063, 0xD834,
+        ];
+
+        assert_eq!(
+            ReqImpl::from_utf16_lossy(v),
+            ReqImpl::from("𝄞mus\u{FFFD}ic\u{FFFD}")
+        );
+    }
+
+    #[test]
+    fn test_from_utf8() {
+        let hello_vec = vec![104, 101, 108, 108, 111];
+        let s = ReqImpl::from_utf8(hello_vec).unwrap();
+        assert_eq!(s, "hello");
+
+        let invalid_vec = vec![240, 144, 128];
+        let s = ReqImpl::from_utf8(invalid_vec).err().unwrap();
+        let _err = s.utf8_error();
+        assert_eq!(s.into_bytes(), [240, 144, 128]);
+    }
+
+    #[test]
+    fn test_from_utf8_lossy() {
+        let input = b"Hello \xF0\x90\x80World";
+        let output = ReqImpl::from_utf8_lossy(input);
+        assert_eq!(output, "Hello \u{FFFD}World");
+    }
+
+    #[test]
+    fn test_insert_str() {
+        let mut s = ReqImpl::from("foo");
+        s.insert_str(2, "bar");
+        assert!(s == "fobaro");
+    }
+
+    #[test]
+    fn test_into_bytes() {
+        let s = ReqImpl::from("hello");
+        let bytes = s.into_bytes();
+        assert_eq!(bytes, [104, 101, 108, 108, 111]);
+    }
+
+    #[test]
+    fn test_is_empty() {
+        let mut v = ReqImpl::new();
+        assert!(v.is_empty());
+        v.push('a');
+        assert!(!v.is_empty());
+    }
+
+    #[test]
+    fn test_new() {
+        let s = ReqImpl::new();
+        assert_eq!(ReqImpl::with_capacity(0), s);
+    }
+
+    #[test]
+    fn test_push() {
+        let mut s = ReqImpl::from("abc");
+        s.push('1');
+        s.push('2');
+        s.push('3');
+        assert_eq!(s, "abc123");
+    }
+
+    #[test]
+    fn test_push_str() {
+        let mut s = ReqImpl::from("foo");
+        s.push_str("bar");
+        assert_eq!(s, "foobar");
+    }
+
+    #[test]
+    fn test_remove_range() {
+        let mut s = ReqImpl::from("α is alpha, β is beta");
+        let beta_offset = s.find('β').unwrap_or(s.len());
+
+        // Remove the range up until the β from the string
+        s.remove_range(..beta_offset);
+
+        assert_eq!(s, "β is beta");
+
+        // A full range clears the string
+        s.remove_range(..);
+        assert_eq!(s, "");
+    }
+
+    #[test]
+    fn test_replace_range() {
+        let mut s = ReqImpl::from("α is alpha, β is beta");
+        let beta_offset = s.find('β').unwrap_or(s.len());
+
+        // Replace the range up until the β from the string
+        s.replace_range(..beta_offset, "Α is capital alpha; ");
+        assert_eq!(s, "Α is capital alpha; β is beta");
+    }
+
+    #[test]
+    fn test_retain() {
+        let mut s = ReqImpl::from("f_o_ob_ar");
+
+        s.retain(|c| c != '_');
+
+        assert_eq!(s, "foobar");
+
+        let mut s = ReqImpl::from("abcde");
+        let keep = [false, true, true, false, true];
+        let mut i = 0;
+        s.retain(|_| (keep[i], i += 1).0);
+        assert_eq!(s, "bce");
     }
 }
 
@@ -654,5 +1350,41 @@ mod std_string_stringext_sanity_tests {
         assert_eq!(StringExt::pop(&mut s), Some('o'));
         assert_eq!(StringExt::pop(&mut s), Some('f'));
         assert_eq!(StringExt::pop(&mut s), None);
+    }
+
+    #[test]
+    fn test_insert_str() {
+        let mut s = String::from("foo");
+        StringExt::insert_str(&mut s, 1, "bar");
+        assert_eq!(s, "fbaroo");
+    }
+
+    #[test]
+    fn test_remove_range() {
+        let mut s = String::from("foobar");
+        StringExt::remove_range(&mut s, 1..3);
+        assert_eq!(s, "fbar");
+    }
+
+    #[test]
+    fn test_split_off() {
+        let mut s = String::from("foobar");
+        let right_part = StringExt::split_off(&mut s, 3);
+        assert_eq!(s, "foo");
+        assert_eq!(right_part, "bar");
+    }
+
+    #[test]
+    fn test_retain() {
+        let mut s = String::from("--f-oo-b-a-r---");
+        StringExt::retain(&mut s, |ch| ch != '-');
+        assert_eq!(s, "foobar");
+    }
+
+    #[test]
+    fn test_replace_range() {
+        let mut s = String::from("foobar");
+        StringExt::replace_range(&mut s, 1..5, "qwerty");
+        assert_eq!(s, "fqwertyr");
     }
 }
