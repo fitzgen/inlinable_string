@@ -85,15 +85,6 @@ impl AsMut<str> for InlineString {
     }
 }
 
-impl AsMut<[u8]> for InlineString {
-    #[inline]
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.assert_sanity();
-        let length = self.len();
-        &mut self.bytes[0..length]
-    }
-}
-
 /// An error type for `InlineString`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct NotEnoughCapacity;
