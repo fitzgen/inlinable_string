@@ -378,6 +378,29 @@ pub trait StringExt<'a>:
     /// this function will panic.
     fn insert(&mut self, idx: usize, ch: char);
 
+    /// Inserts a string into the string buffer at byte position `idx`.
+    ///
+    /// # Warning
+    ///
+    /// This is an O(n) operation as it requires copying every element in the
+    /// buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use inlinable_string::{InlinableString, StringExt};
+    ///
+    /// let mut s = InlinableString::from("foo");
+    /// s.insert_str(2, "bar");
+    /// assert!(s == "fobaro");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If `idx` does not lie on a character boundary or is out of bounds, then
+    /// this function will panic.
+    fn insert_str(&mut self, idx: usize, string: &str);
+
     /// Views the string buffer as a mutable sequence of bytes.
     ///
     /// # Safety
@@ -540,6 +563,11 @@ impl<'a> StringExt<'a> for String {
     #[inline]
     fn insert(&mut self, idx: usize, ch: char) {
         String::insert(self, idx, ch)
+    }
+
+    #[inline]
+    fn insert_str(&mut self, idx: usize, string: &str) {
+        String::insert_str(self, idx, string)
     }
 
     #[inline]

@@ -618,6 +618,29 @@ impl<'a> StringExt<'a> for InlinableString {
     }
 
     #[inline]
+    fn insert_str(&mut self, idx: usize, string: &str) {
+        let promoted = match *self {
+            InlinableString::Heap(ref mut s) => {
+                s.insert_str(idx, string);
+                return;
+            }
+            InlinableString::Inline(ref mut s) => {
+                if s.insert_str(idx, string).is_ok() {
+                    return;
+                }
+
+                let mut promoted = String::with_capacity(s.len() + string.len());
+                promoted.push_str(&s[..idx]);
+                promoted.push_str(string);
+                promoted.push_str(&s[idx..]);
+                promoted
+            }
+        };
+
+        mem::swap(self, &mut InlinableString::Heap(promoted));
+    }
+
+    #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
         match *self {
             InlinableString::Heap(ref mut s) => &mut s.as_mut_vec()[..],
@@ -701,6 +724,21 @@ mod tests {
         assert_eq!(
             s,
             String::from_iter((0..INLINE_STRING_CAPACITY + 1).map(|_| 'a'))
+        );
+    }
+
+    #[test]
+    fn test_insert_str() {
+        let mut s = InlinableString::new();
+
+        for _ in 0..(INLINE_STRING_CAPACITY / 3) {
+            s.insert_str(0, "foo");
+        }
+        s.insert_str(0, "foo");
+
+        assert_eq!(
+            s,
+            String::from_iter((0..(INLINE_STRING_CAPACITY / 3) + 1).map(|_| "foo"))
         );
     }
 
