@@ -120,7 +120,7 @@ impl<'a> From<&'a str> for InlineString {
 }
 
 impl fmt::Display for InlineString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.assert_sanity();
         write!(f, "{}", self as &str)
     }
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_write() {
-        use fmt::{Error, Write};
+        use std::fmt::{Error, Write};
 
         let mut s = InlineString::new();
         let mut normal_string = String::new();

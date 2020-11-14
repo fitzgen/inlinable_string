@@ -1,7 +1,7 @@
+use crate::InlinableString;
 use serde::de::{Deserialize, Deserializer, Error as DeError, Visitor};
 use serde::{Serialize, Serializer};
 use std::fmt;
-use InlinableString;
 
 impl Serialize for InlinableString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -22,7 +22,7 @@ impl<'de> Deserialize<'de> for InlinableString {
         impl<'de> Visitor<'de> for InlinableStringVisitor {
             type Value = InlinableString;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a string")
             }
 
@@ -47,8 +47,8 @@ impl<'de> Deserialize<'de> for InlinableString {
 
 #[cfg(test)]
 mod tests {
+    use crate::InlinableString;
     use serde_test::{assert_tokens, Token};
-    use InlinableString;
 
     #[test]
     fn test_ser_de() {
