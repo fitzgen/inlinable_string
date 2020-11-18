@@ -34,13 +34,17 @@
 //! assert_eq!(s, "hi world");
 //! ```
 
-use std::borrow;
-use std::fmt;
-use std::hash;
+use alloc::borrow;
+use core::fmt;
+use core::hash;
+use core::ops;
+use core::ptr;
+use core::str;
+
+#[cfg(feature = "no_std")]
+use bare_io::Write;
+#[cfg(not(feature = "no_std"))]
 use std::io::Write;
-use std::ops;
-use std::ptr;
-use std::str;
 
 /// The capacity (in bytes) of inline storage for small strings.
 /// `InlineString::len()` may never be larger than this.
@@ -680,6 +684,7 @@ impl InlineString {
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::String;
     use super::{InlineString, NotEnoughSpaceError, INLINE_STRING_CAPACITY};
 
     #[test]
@@ -718,7 +723,7 @@ mod tests {
 
     #[test]
     fn test_write() {
-        use std::fmt::{Error, Write};
+        use core::fmt::{Error, Write};
 
         let mut s = InlineString::new();
         let mut normal_string = String::new();
@@ -739,5 +744,5 @@ mod benches {
     use test::Bencher;
 
     #[bench]
-    fn its_fast(b: &mut Bencher) {}
+    fn its_fast(_b: &mut Bencher) {}
 }

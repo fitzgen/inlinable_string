@@ -75,9 +75,12 @@
 
 #![forbid(missing_docs)]
 #![cfg_attr(feature = "nightly", feature(plugin))]
-#![cfg_attr(feature = "nightly", plugin(clippy))]
-#![cfg_attr(feature = "nightly", deny(clippy))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
+#![cfg_attr(feature = "no_std", no_std)]
+
+#[allow(unused_imports)]
+#[cfg_attr(feature = "no_std", macro_use)]
+extern crate alloc;
 
 #[cfg(test)]
 #[cfg(feature = "nightly")]
@@ -92,14 +95,15 @@ pub mod string_ext;
 pub use inline_string::{InlineString, INLINE_STRING_CAPACITY};
 pub use string_ext::StringExt;
 
-use std::borrow::{Borrow, Cow};
-use std::cmp::Ordering;
-use std::fmt;
-use std::hash;
-use std::iter;
-use std::mem;
-use std::ops;
-use std::string::{FromUtf16Error, FromUtf8Error};
+use alloc::borrow::{Borrow, Cow};
+use alloc::vec::Vec;
+use alloc::string::{FromUtf16Error, FromUtf8Error, String};
+use core::cmp::Ordering;
+use core::fmt;
+use core::hash;
+use core::iter;
+use core::mem;
+use core::ops;
 
 /// An owned, grow-able UTF-8 string that allocates short strings inline on the
 /// stack.
@@ -659,13 +663,14 @@ impl<'a> StringExt<'a> for InlinableString {
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::{String, ToString};
+    use core::iter::FromIterator;
     use super::{InlinableString, StringExt, INLINE_STRING_CAPACITY};
-    use std::cmp::Ordering;
-    use std::iter::FromIterator;
+    use core::cmp::Ordering;
 
     #[test]
     fn test_size() {
-        use std::mem::size_of;
+        use core::mem::size_of;
         assert_eq!(size_of::<InlinableString>(), 4 * size_of::<usize>());
     }
 
@@ -686,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_write() {
-        use std::fmt::Write;
+        use core::fmt::Write;
         let mut s = InlinableString::new();
         write!(&mut s, "small").expect("!write");
         assert_eq!(s, "small");
@@ -858,6 +863,8 @@ mod tests {
 #[cfg(test)]
 #[cfg(feature = "nightly")]
 mod benches {
+    #[cfg(feature = "no_std")]
+    use alloc::string::String;
     use super::{InlinableString, StringExt};
     use test::{black_box, Bencher};
 

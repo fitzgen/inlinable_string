@@ -11,10 +11,11 @@
 //!
 //! See the [crate level documentation](./../index.html) for more.
 
-use std::borrow::{Borrow, Cow};
-use std::cmp::PartialEq;
-use std::fmt::Display;
-use std::string::{FromUtf16Error, FromUtf8Error};
+use alloc::borrow::{Borrow, Cow};
+use alloc::vec::Vec;
+use alloc::string::{String, FromUtf16Error, FromUtf8Error};
+use core::cmp::PartialEq;
+use core::fmt::Display;
 
 /// A trait that exists to abstract string operations over any number of
 /// concrete string type implementations.
@@ -585,6 +586,7 @@ impl<'a> StringExt<'a> for String {
 mod std_string_stringext_sanity_tests {
     // Sanity tests for std::string::String's StringExt implementation.
 
+    use alloc::string::String;
     use super::StringExt;
 
     #[test]

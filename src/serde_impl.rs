@@ -1,7 +1,8 @@
+use alloc::string::String;
 use crate::InlinableString;
 use serde::de::{Deserialize, Deserializer, Error as DeError, Visitor};
 use serde::{Serialize, Serializer};
-use std::fmt;
+use core::fmt;
 
 impl Serialize for InlinableString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
