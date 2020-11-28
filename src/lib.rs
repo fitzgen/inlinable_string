@@ -99,11 +99,13 @@ use alloc::borrow::{Borrow, Cow};
 use alloc::vec::Vec;
 use alloc::string::{FromUtf16Error, FromUtf8Error, String};
 use core::cmp::Ordering;
+use core::convert;
 use core::fmt;
 use core::hash;
 use core::iter;
 use core::mem;
 use core::ops;
+use core::str::FromStr;
 
 /// An owned, grow-able UTF-8 string that allocates short strings inline on the
 /// stack.
@@ -240,6 +242,15 @@ impl From<String> for InlinableString {
         } else {
             InlinableString::Heap(string)
         }
+    }
+}
+
+impl FromStr for InlinableString {
+    type Err = convert::Infallible;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<InlinableString, convert::Infallible> {
+        Ok(InlinableString::from(s))
     }
 }
 
@@ -667,6 +678,7 @@ mod tests {
     use core::iter::FromIterator;
     use super::{InlinableString, StringExt, INLINE_STRING_CAPACITY};
     use core::cmp::Ordering;
+    use core::str::FromStr;
 
     #[test]
     fn test_size() {
@@ -856,6 +868,26 @@ mod tests {
         assert_eq!(
             format!("{:?}", long),
             "\"hello world hello world hello world\""
+        );
+    }
+
+    // example generic function where impl FromStr for InlinableString is useful
+    fn parse_non_empty<T: FromStr>(s: &str) -> Option<T> {
+        if s.len() == 0 {
+            None
+        } else {
+            let val = T::from_str(s).unwrap_or_else(|_| panic!("unwrap"));
+            Some(val)
+        }
+    }
+
+    #[test]
+    fn test_fromstr() {
+        assert_eq!(parse_non_empty::<InlinableString>(""), None);
+        assert_eq!(parse_non_empty::<u8>("10"), Some(10u8));
+        assert_eq!(
+            parse_non_empty::<InlinableString>("foo"),
+            Some(InlinableString::from("foo"))
         );
     }
 }
