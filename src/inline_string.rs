@@ -504,9 +504,11 @@ impl InlineString {
         let next = idx + char_len;
 
         unsafe {
+            let ptr = self.bytes.as_mut_ptr();
+
             ptr::copy(
-                self.bytes.as_ptr().add(next),
-                self.bytes.as_mut_ptr().add(idx),
+                ptr.add(next),
+                ptr.add(idx),
                 self.len() - next,
             );
         }
@@ -526,10 +528,12 @@ impl InlineString {
             return Err(NotEnoughSpaceError);
         }
 
+        let ptr = self.bytes.as_mut_ptr().add(idx);
+
         // Shift the latter part.
         ptr::copy(
-            self.bytes.as_ptr().add(idx),
-            self.bytes.as_mut_ptr().add(idx + amt),
+            ptr,
+            ptr.add(amt),
             len - idx,
         );
         // Copy the bytes into the buffer.
