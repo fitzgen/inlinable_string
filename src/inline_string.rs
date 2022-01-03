@@ -41,10 +41,6 @@ use core::ops;
 use core::ptr;
 use core::str;
 
-#[cfg(feature = "no_std")]
-use bare_io::Write;
-#[cfg(not(feature = "no_std"))]
-use std::io::Write;
 
 /// The capacity (in bytes) of inline storage for small strings.
 /// `InlineString::len()` may never be larger than this.
@@ -389,10 +385,7 @@ impl InlineString {
 
         {
             let mut slice = &mut self.bytes[self.length as usize..INLINE_STRING_CAPACITY];
-            write!(&mut slice, "{}", ch).expect(
-                "inlinable_string: internal error: should have enough space, we
-                         checked above",
-            );
+            ch.encode_utf8(&mut slice);
         }
         self.length = new_length as u8;
 

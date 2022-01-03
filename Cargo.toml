@@ -18,13 +18,9 @@ repository = "https://github.com/fitzgen/inlinable_string"
 optional = true
 version = "1"
 
-[dependencies.bare-io]
-optional = true
-version = "0.2"
-
 [features]
 nightly = []
-no_std = ["bare-io"]
+no_std = []
 
 [dev-dependencies]
 serde_test = "1"
