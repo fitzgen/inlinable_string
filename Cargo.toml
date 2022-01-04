@@ -4,7 +4,7 @@ name = "inlinable_string"
 
 description = "The `inlinable_string` crate provides the `InlinableString` type -- an owned, grow-able UTF-8 string that stores small strings inline and avoids heap-allocation -- and the `StringExt` trait which abstracts string operations over both `std::string::String` and `InlinableString` (or even your own custom string type)."
 
-version = "0.1.14"
+version = "0.1.15"
 edition = "2018"
 license = "Apache-2.0/MIT"
 keywords = ["string", "inline", "inlinable"]
@@ -18,13 +18,9 @@ repository = "https://github.com/fitzgen/inlinable_string"
 optional = true
 version = "1"
 
-[dependencies.bare-io]
-optional = true
-version = "0.2"
-
 [features]
 nightly = []
-no_std = ["bare-io"]
+no_std = []
 
 [dev-dependencies]
 serde_test = "1"
