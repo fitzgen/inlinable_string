@@ -498,12 +498,12 @@ impl<'a> StringExt<'a> for String {
 
     #[inline]
     unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self {
-        String::from_raw_parts(buf, length, capacity)
+        unsafe {String::from_raw_parts(buf, length, capacity)}
     }
 
     #[inline]
     unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self {
-        String::from_utf8_unchecked(bytes)
+        unsafe {String::from_utf8_unchecked(bytes)}
     }
 
     #[inline]
@@ -573,7 +573,7 @@ impl<'a> StringExt<'a> for String {
 
     #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut *(self.as_mut_str() as *mut str as *mut [u8])
+        unsafe {&mut *(self.as_mut_str() as *mut str as *mut [u8])}
     }
 
     #[inline]
