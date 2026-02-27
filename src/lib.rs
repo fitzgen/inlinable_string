@@ -37,7 +37,7 @@
 //!
 //! // This method can work on strings potentially stored inline on the stack,
 //! // on the heap, or plain old `std::string::String`s!
-//! fn takes_a_string_reference(string: &mut StringExt) {
+//! fn takes_a_string_reference<'a, T: StringExt<'a>>(string: &mut T) {
 //!    // Do something with the string...
 //!    string.push_str("it works!");
 //! }
@@ -214,6 +214,11 @@ impl AsRef<str> for InlinableString {
     }
 }
 
+// The only mutation operations that are sound are those that guarantee the byte count stays the same
+// and the result stays valid UTF-8 (like make_ascii_uppercase). Arbitrary mutation
+// through an AsMut<str> impl exposes the internal storage to callers who may not uphold that invariant.
+
+#[cfg(feature = "as_mut")]
 impl AsMut<str> for InlinableString {
     fn as_mut(&mut self) -> &mut str {
         match *self {
@@ -453,12 +458,12 @@ impl<'a> StringExt<'a> for InlinableString {
 
     #[inline]
     unsafe fn from_raw_parts(buf: *mut u8, length: usize, capacity: usize) -> Self {
-        InlinableString::Heap(String::from_raw_parts(buf, length, capacity))
+        unsafe {InlinableString::Heap(String::from_raw_parts(buf, length, capacity))}
     }
 
     #[inline]
     unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> Self {
-        InlinableString::Heap(String::from_utf8_unchecked(bytes))
+        unsafe {InlinableString::Heap(String::from_utf8_unchecked(bytes))}
     }
 
     #[inline]
@@ -657,10 +662,10 @@ impl<'a> StringExt<'a> for InlinableString {
 
     #[inline]
     unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
-        match *self {
+        unsafe {match *self {
             InlinableString::Heap(ref mut s) => &mut s.as_mut_vec()[..],
             InlinableString::Inline(ref mut s) => s.as_mut_slice(),
-        }
+        }}
     }
 
     #[inline]
